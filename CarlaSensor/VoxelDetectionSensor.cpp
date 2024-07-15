@@ -76,33 +76,6 @@ void AVoxelDetectionSensor::Set(const FActorDescription &Description)
 		"box_size",
 		Description.Variations,
 		0.1f);
-	
-	// for (int i = 0; i < (Front-Back)/BoxSize; ++i)
-	// {
-	// 	for (int j = 0; j < (Left-Right)/BoxSize; ++j)
-	// 	{
-	// 		for (int k = 0; k < (Top-Bottom)/BoxSize; ++k)
-	// 		{
-	// 			auto * Box = NewObject<UBoxComponent>(this,UBoxComponent::StaticClass(),*FString::Printf(TEXT("Box_%d_%d_%d"), i, j ,k));
-	// 			// auto * Box = CreateDefaultSubobject<UBoxComponent>(*FString::Printf(TEXT("Box_%d_%d_%d"), i, j ,k));
-	// 			Box->SetupAttachment(RootComponent);
-	// 			// Box->SetCollisionProfileName(FName("VoxelDetection"));
-	// 			Box->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// 			// UE_LOG(LogTemp, Error, TEXT("asdfsdf"));
-	// 			// UE_LOG(LogTemp, Warning, TEXT("%f %f %f"),Back*M_TO_CM+(i+1/2)*BOX_CM,Right*M_TO_CM+(j+1/2)*BOX_CM,Bottom*M_TO_CM+(k+1/2)*BOX_CM);
-	// 			Box->SetRelativeLocation(FVector{Back*M_TO_CM+(i+1/2)*BOX_CM, Right*M_TO_CM+(j+1/2)*BOX_CM, Bottom*M_TO_CM+(k+1/2)*BOX_CM});
-	// 			Box->SetBoxExtent(FVector{BOX_CM, BOX_CM, BOX_CM});
-	// 			Box->SetHiddenInGame(false); // Disable for debugging.
-	// 			Box->ShapeColor = FColor::Red;
-	// 			// Box->SetCollisionProfileName(FName("OverlapAll"));
-	// 			// Box->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// 			Box->RegisterComponent();
-	// 			Boxes.Add(FString::Printf(TEXT("Box_%d_%d_%d"), i, j ,k),Box);
-	// 		}
-	// 	}
-	// }
-	// Box1->SetRelativeLocation(FVector{0.0f, 0.0f, 0.0f});
-	// Box1->SetBoxExtent(FVector{10000.0f,10000.0f, 10000.0f});
 }
 
 void AVoxelDetectionSensor::SetOwner(AActor *NewOwner)
@@ -114,11 +87,7 @@ void AVoxelDetectionSensor::SetOwner(AActor *NewOwner)
 void AVoxelDetectionSensor::PrePhysTick(float DeltaSeconds)
 {
     Super::PrePhysTick(DeltaSeconds);
-
-    // TArray<AActor*> DetectedActors;
-	TArray<FHitResult> hits;
-	// TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-	// ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_VoxelTrace));
+	
 	TArray<AActor*> ActorsToIgnore;
 	ActorsToIgnore.Add(this);
 	ActorsToIgnore.Add(this->GetParentActor());
@@ -143,25 +112,9 @@ void AVoxelDetectionSensor::PrePhysTick(float DeltaSeconds)
 	{
 		auto currentHit = Hits[hitIndex];
 		auto HitPoint = currentHit.ImpactPoint;
-		// if (currentHit.GetActor()->GetClass() == ARoutePlanner::StaticClass())
-		// {
-		// 	return;
-		// }
 		auto CurrentBoxLocation = this->FindNearestBoxLocation(HitPoint);
 		this->VoxelDetection(CurrentBoxLocation, ActorsToIgnore, SemanticVoxels);
 	});
-
-    // for (auto Hit : Hits)
-    // {
-	   //  auto HitPoint = Hit.ImpactPoint;
-	   //  if (Hit.GetActor()->GetClass() == ARoutePlanner::StaticClass())
-	   //  {
-		  //   continue;
-	   //  }
-    // 	auto CurrentBoxLocation = this->FindNearestBoxLocation(HitPoint);
-    // 	this->VoxelDetection(CurrentBoxLocation, ActorsToIgnore, SemanticVoxels);
-    // }
-	// this->VoxelDetection(Start,End,Size,ActorsToIgnore,SemanticVoxels);
 	UE_LOG(LogTemp, Warning, TEXT("Tick"));
 	TArray<AActor*> DetectedActors;
 	TSet<AActor*> ActualActors;
