@@ -71,7 +71,7 @@ public:
 
 	void PrePhysTick(float DeltaSeconds) override;
 
-	void VoxelDetection(const FVector CurrentBoxLocation, TArray<AActor*>& IgnoreActors, Array3D<bool>& visited, Array3D<AActor*>& SemanticVoxels);
+	void VoxelDetection(const FVector CurrentBoxLocation, TArray<AActor*>& IgnoreActors, Array3D<AActor*>& SemanticVoxels);
 
 	FVector FindNearestBoxLocation(FVector ImpactPoint);
 

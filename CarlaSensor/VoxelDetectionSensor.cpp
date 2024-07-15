@@ -5,6 +5,7 @@
 #include "Carla/Game/CarlaEpisode.h"
 #include "Carla/Util/BoundingBoxCalculator.h"
 #include "Carla/Vehicle/CarlaWheeledVehicle.h"
+#include "Traffic/RoutePlanner.h"
 
 AVoxelDetectionSensor::AVoxelDetectionSensor(const FObjectInitializer &ObjectInitializer)
   : Super(ObjectInitializer)
@@ -122,7 +123,6 @@ void AVoxelDetectionSensor::PrePhysTick(float DeltaSeconds)
 	ActorsToIgnore.Add(this);
 	ActorsToIgnore.Add(this->GetParentActor());
 	Array3D<AActor*> SemanticVoxels = Array3D<AActor*>(int(2*this->DetectedLen/this->BoxSize),int(2*this->DetectedLen/this->BoxSize),int((this->Top-this->Bottom)/this->BoxSize), nullptr);
-	Array3D<bool> visited = Array3D<bool>(int(2*this->DetectedLen/this->BoxSize),int(2*this->DetectedLen/this->BoxSize),int((this->Top-this->Bottom)/this->BoxSize), false);
 	const FVector Size = FVector{this->DetectedLen, this->DetectedLen, this->Top-this->Bottom};
 	const FVector Start = FVector{this->GetActorLocation().X,this->GetActorLocation().Y, this->Top};
 	const FVector End = FVector{this->GetActorLocation().X,this->GetActorLocation().Y, this->Bottom};
@@ -133,27 +133,50 @@ void AVoxelDetectionSensor::PrePhysTick(float DeltaSeconds)
 		End,
 		Size,
 		this->GetActorRotation(),
-		FName("VoxelDetection"),
+		FName("OverlapAll"),
 		false,
 		ActorsToIgnore,
-		EDrawDebugTrace::Persistent,
+		EDrawDebugTrace::None,
 		Hits,
 		true);
-    for (auto Hit : Hits)
-    {
-	    auto HitPoint = Hit.ImpactPoint;
-    	auto CurrentBoxLocation = this->FindNearestBoxLocation(HitPoint);
-    	this->VoxelDetection(CurrentBoxLocation, ActorsToIgnore, visited, SemanticVoxels);
-    }
+	ParallelFor(Hits.Num(),[&](int hitIndex)
+	{
+		auto currentHit = Hits[hitIndex];
+		auto HitPoint = currentHit.ImpactPoint;
+		// if (currentHit.GetActor()->GetClass() == ARoutePlanner::StaticClass())
+		// {
+		// 	return;
+		// }
+		auto CurrentBoxLocation = this->FindNearestBoxLocation(HitPoint);
+		this->VoxelDetection(CurrentBoxLocation, ActorsToIgnore, SemanticVoxels);
+	});
+
+    // for (auto Hit : Hits)
+    // {
+	   //  auto HitPoint = Hit.ImpactPoint;
+	   //  if (Hit.GetActor()->GetClass() == ARoutePlanner::StaticClass())
+	   //  {
+		  //   continue;
+	   //  }
+    // 	auto CurrentBoxLocation = this->FindNearestBoxLocation(HitPoint);
+    // 	this->VoxelDetection(CurrentBoxLocation, ActorsToIgnore, SemanticVoxels);
+    // }
 	// this->VoxelDetection(Start,End,Size,ActorsToIgnore,SemanticVoxels);
 	UE_LOG(LogTemp, Warning, TEXT("Tick"));
 	TArray<AActor*> DetectedActors;
+	TSet<AActor*> ActualActors;
 	for (int x=0; x<SemanticVoxels.getLength(); ++x)
 	{
 		for (int y=0; y<SemanticVoxels.getWidth(); ++y)
 		{
 			for (int z=0; z<SemanticVoxels.getHeight(); ++z)
 			{
+				if (SemanticVoxels[x][y][z])
+				{
+					// FVector Pos = FVector{x*BoxSize+this->GetActorLocation().X-this->DetectedLen+BoxSize/2,y*BoxSize+this->GetActorLocation().Y-this->DetectedLen+BoxSize/2,z*BoxSize+this->Bottom+BoxSize/2};
+					// UKismetSystemLibrary::DrawDebugBox(GetWorld(), Pos, FVector{this->BoxSize/2, this->BoxSize/2, this->BoxSize/2},FLinearColor::Red); // Debug
+					ActualActors.Emplace(SemanticVoxels[x][y][z]);
+				}
 				DetectedActors.Add(SemanticVoxels[x][y][z]);/**/
 			}
 		}
@@ -162,91 +185,87 @@ void AVoxelDetectionSensor::PrePhysTick(float DeltaSeconds)
 	DataStream.SerializeAndSend(*this, GetEpisode(), DetectedActors);
 }
 
-void AVoxelDetectionSensor::VoxelDetection(const FVector CurrentBoxLocation, TArray<AActor*>& IgnoreActors, Array3D<bool>& visited, Array3D<AActor*>& SemanticVoxels)
+void AVoxelDetectionSensor::VoxelDetection(const FVector CurrentBoxLocation, TArray<AActor*>& IgnoreActors, Array3D<AActor*>& SemanticVoxels)
 {
-	int x = (CurrentBoxLocation.X - (this->GetActorLocation().X-this->DetectedLen))/BoxSize;
-	int y = (CurrentBoxLocation.Y - (this->GetActorLocation().Y-this->DetectedLen))/BoxSize;
-	int z = (CurrentBoxLocation.Z - this->Bottom)/BoxSize;
-	if (x < 0 || x >= visited.getLength() ||
-		y < 0 || y >= visited.getWidth() ||
-		z < 0 || z >= visited.getHeight() ||
-		visited[x][y][z])
+	TArray<FVector> BoxToDetected;
+	Array3D<bool> visited = Array3D<bool>(int(2*this->DetectedLen/this->BoxSize),int(2*this->DetectedLen/this->BoxSize),int((this->Top-this->Bottom)/this->BoxSize), false);
+	BoxToDetected.Emplace(CurrentBoxLocation);
+	while (!BoxToDetected.IsEmpty())
 	{
-		return;
-	}
-	visited[x][y][z] = true;
-	TArray<FHitResult> Hits;
-	UKismetSystemLibrary::BoxTraceMultiByProfile(
-		GetWorld(),
-		FVector{CurrentBoxLocation.X, CurrentBoxLocation.Y, CurrentBoxLocation.Z + this->BoxSize/2},
-		FVector{CurrentBoxLocation.X, CurrentBoxLocation.Y, CurrentBoxLocation.Z - this->BoxSize/2},
-		FVector{this->BoxSize, this->BoxSize, this->BoxSize},
-		this->GetActorRotation(),
-		FName("VoxelDetection"),
-		false,
-		IgnoreActors,
-		EDrawDebugTrace::Persistent, //Persistent
-		Hits,
-		true);
-	if (Hits.Num() == 0)
-	{
-		return;
-	}
-	UE_LOG(LogTemp, Warning, TEXT("Hit at (%d, %d, %d), num: %d"), x, y, z, Hits.Num());
-	const auto& CurrentEpisode = GetEpisode();
-	for (auto Hit : Hits)
-	{
-		auto actor = CurrentEpisode.FindCarlaActor(Hit.GetActor());
-		if (actor != nullptr)
+		TArray<FVector> NextBoxToDetect;
+		auto num = BoxToDetected.Num();
+		for (int i=0; i < num; i++)
 		{
-			SemanticVoxels[x][y][z] = Hit.GetActor();
+			auto BoxLocation = BoxToDetected.Pop();
+			int x = (BoxLocation.X - (this->GetActorLocation().X-this->DetectedLen))/BoxSize;
+			int y = (BoxLocation.Y - (this->GetActorLocation().Y-this->DetectedLen))/BoxSize;
+			int z = (BoxLocation.Z - this->Bottom)/BoxSize;
+			if (x < 0 || x >= visited.getLength() ||
+				y < 0 || y >= visited.getWidth() ||
+				z < 0 || z >= visited.getHeight() ||
+				visited[x][y][z])
+			{
+				continue;
+			}
+			visited[x][y][z] = true;
+			FHitResult OutHits(ForceInit);
+			FVector Start = FVector{BoxLocation.X, BoxLocation.Y, BoxLocation.Z+this->BoxSize/2};
+			FVector End = FVector{BoxLocation.X, BoxLocation.Y, BoxLocation.Z-this->BoxSize/2};
+			FVector Size = FVector{this->BoxSize/2, this->BoxSize/2, this->BoxSize/2};
+			UKismetSystemLibrary::BoxTraceSingleByProfile(
+				GetWorld(),
+				Start,
+				End,
+				Size,
+				this->GetActorRotation(),
+				FName("Vehicle"),
+				true,
+				IgnoreActors,
+				EDrawDebugTrace::None,
+				OutHits,
+				true);
+			if (OutHits.bBlockingHit)
+			{
+				SemanticVoxels[x][y][z] = OutHits.GetActor();
+			}else
+			{
+				continue;
+			}
+			// UE_LOG(LogTemp, Warning, TEXT("Hit at (%d, %d, %d), num: %d"), x, y, z, Hits.Num());
+			// x axis expand
+			if (x-1 >= 0 && !visited[x-1][y][z])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X-this->BoxSize, BoxLocation.Y, BoxLocation.Z});
+			}
+			if (x+1 <= SemanticVoxels.getLength()-1 && !visited[x+1][y][z])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X+this->BoxSize, BoxLocation.Y, BoxLocation.Z});
+			}
+			// y axis expand
+			if (y-1 >= 0 && !visited[x][y-1][z])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X, BoxLocation.Y-this->BoxSize, BoxLocation.Z});
+			}
+			if (y+1 <= SemanticVoxels.getWidth()-1 && !visited[x][y+1][z])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X, BoxLocation.Y+this->BoxSize, BoxLocation.Z});
+			}
+			// z axis expand
+			if (z-1 >= 0 && !visited[x][y][z-1])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X, BoxLocation.Y, BoxLocation.Z-this->BoxSize});
+			}
+			if (z+1 <= SemanticVoxels.getHeight()-1 && !visited[x][y][z+1])
+			{
+				NextBoxToDetect.Add(FVector{BoxLocation.X, BoxLocation.Y, BoxLocation.Z+this->BoxSize});
+			}
+		}
+		BoxToDetected.Append(NextBoxToDetect);
+		while (!NextBoxToDetect.IsEmpty())
+		{
+			BoxToDetected.Add(NextBoxToDetect.Pop());
 		}
 	}
-	// x axis expand
-	if (x-1 >= 0 && !visited[x-1][y][z])
-	{
-		this->VoxelDetection(
-			FVector{CurrentBoxLocation.X-this->BoxSize, CurrentBoxLocation.Y, CurrentBoxLocation.Z},
-			IgnoreActors,
-			visited,
-			SemanticVoxels);
-	}
-	if (x+1 <= SemanticVoxels.getLength()-1 && !visited[x+1][y][z])
-	{
-		this->VoxelDetection(
-			FVector{CurrentBoxLocation.X+this->BoxSize, CurrentBoxLocation.Y, CurrentBoxLocation.Z},
-			IgnoreActors,
-			visited,
-			SemanticVoxels);
-	}
-	// y axis expand
-	if (y-1 >= 0 && !visited[x][y-1][z])
-	{
-		this->VoxelDetection(
-			FVector{CurrentBoxLocation.X, CurrentBoxLocation.Y-this->BoxSize, CurrentBoxLocation.Z},
-			IgnoreActors,
-			visited,
-			SemanticVoxels);
-	}
-	if (y+1 <= SemanticVoxels.getWidth()-1 && !visited[x][y+1][z])
-	{
-		this->VoxelDetection(
-			FVector{CurrentBoxLocation.X, CurrentBoxLocation.Y+this->BoxSize, CurrentBoxLocation.Z},
-			IgnoreActors,
-			visited,
-			SemanticVoxels);
-	}
-	// z axis expand
-	if (z-1 >= 0 && !visited[x][y][z-1])
-	{
-		this->VoxelDetection(
-			FVector{CurrentBoxLocation.X, CurrentBoxLocation.Y, CurrentBoxLocation.Z-this->BoxSize},
-			IgnoreActors,
-			visited,
-			SemanticVoxels);
-	}
-	// auto VoxelStream = GetDataStream(*this);
-	// VoxelStream.SerializeAndSend(*this, SemanticVoxels);
 }
 
 FVector AVoxelDetectionSensor::FindNearestBoxLocation(FVector ImpactPoint)
