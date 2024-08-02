@@ -1,0 +1,19 @@
+## OPV2V dataset root
+dataset_root: xxx
+
+model_save_path:
+
+
+model_params:
+  SCPNet:
+    output_shape:
+      - 256
+      - 256
+      - 32
+    fea_dim: 7
+    out_fea_dim: 256
+    num_class: 20
+    num_input_features: 32
+    use_norm: True
+    init_size: 32
+
