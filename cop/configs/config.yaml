@@ -1,5 +1,10 @@
 ## OPV2V dataset root
-dataset_root: xxx
+dataset:
+  root: D:\\Data\\dataset\\OPV2V\\train
+  additional: D:\\Data\\dataset\\OPV2V\\additional\\train
+  batch_size: 2
+  num_workers: 2
+  shuffle: True
 
 model_save_path:
 
@@ -16,4 +21,36 @@ model_params:
     num_input_features: 32
     use_norm: True
     init_size: 32
+  LMSCNet:
+    epochs: 1000
+    input_dimensions:
+      - 256
+      - 256
+      - 32
+    class_num: 23
+    class_frequencies:
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+
 

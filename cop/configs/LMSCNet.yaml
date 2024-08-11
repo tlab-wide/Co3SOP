@@ -1,0 +1,26 @@
+## OPV2V dataset root
+output:
+  root: E:\\Projects\\COG-3D\\cop\\output
+
+dataset:
+  root: D:\\Data\\dataset\\OPV2V\\train
+  additional: D:\\Data\\dataset\\OPV2V\\additional\\train
+  batch_size: 1
+  num_workers: 4
+  shuffle: True
+
+model_params:
+  name: LMSCNet
+  epochs: 80
+  input_dimensions:
+    - 512
+    - 512
+    - 50
+  class_num: 24
+  scheduler_frequency: epoch
+
+period:
+  logger: 50
+  checkpoint: 5
+
+

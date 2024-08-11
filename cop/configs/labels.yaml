@@ -1,0 +1,25 @@
+labels:
+  0: unlabeled
+  1: buildings
+  2: fences
+  3: other
+  4: pedestrians
+  5: poles
+  6: roadlines
+  7: roads
+  8: sidewalks
+  9: vegetation
+  10: vehicles
+  11: walls
+  12: trafficsigns
+  13: sky
+  14: ground
+  15: bridge
+  16: railtrack
+  17: guardrail
+  18: trafficlight
+  19: static
+  20: dydamic
+  21: water
+  22: terrain
+  23: empty
