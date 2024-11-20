@@ -1,6 +1,6 @@
 
 
-# <center> COG-3D: Cooperative 3D Occupancy Prediction Dataset and Benchmark by Simulated Ground Truth Detection
+# <center> COP-3D: Cooperative 3D Occupancy Prediction Dataset and Benchmark by Simulated Ground Truth Detection
 
 - [Benchmark Result](#benchmark-result)
 - [Acknowledgements](#acknowledgements)
