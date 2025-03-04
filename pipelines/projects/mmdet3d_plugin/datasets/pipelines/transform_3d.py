@@ -252,7 +252,7 @@ class CustomCollect3D(object):
                             'pcd_scale_factor', 'pcd_rotation', 'pts_filename',
                             'transformation_3d_flow', 'scene_token',
                             'can_bus', 'pc_range', 'occ_size', 'occ_path', 'lidar_token', 'trans2ego',
-                            'vehicle_id'
+                            'vehicle_id', "lidar2cams", "cam_intrinsic"
                             )):
         self.keys = keys
         self.meta_keys = meta_keys
@@ -317,6 +317,7 @@ class RandomScaleImageMultiViewImage(object):
         lidar2img = [scale_factor @ l2i for l2i in results['lidar2img']]
         results['lidar2img'] = lidar2img
         results['img_shape'] = [img.shape for img in results['img']]
+        # print(results['img_shape'])
         results['ori_shape'] = [img.shape for img in results['img']]
 
         return results

@@ -20,9 +20,11 @@ from torchvision.transforms.functional import rotate
 from .spatial_cross_attention import MSDeformableAttention3D
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
 from mmcv.runner import force_fp32, auto_fp16
+from mmcv.cnn.bricks.transformer import build_positional_encoding
+from projects.mmdet3d_plugin.cop3d_baseline.modules.point_generator import MlvlPointGenerator
 
 @TRANSFORMER.register_module()
-class PerceptionTransformer(BaseModule):
+class V2VFusionTransformer(BaseModule):
     """Implements the Detr3D transformer.
     Args:
         as_two_stage (bool): Generate query from encoder features.
@@ -33,37 +35,45 @@ class PerceptionTransformer(BaseModule):
             `as_two_stage` as True. Default: 300.
     """
 
-    def __init__(self,
+    def __init__(self, volume_h, volume_w, volume_z,
                  num_feature_levels=4,
-                 num_cams=4,
+                 num_cars=4,
                  two_stage_num_proposals=300,
-                 encoder=None,
+                 decoder=None,
                  embed_dims=256,
                  use_cams_embeds=True,
                  rotate_center=[256, 256],
+                 positional_encoding=None,
                  **kwargs):
-        super(PerceptionTransformer, self).__init__(**kwargs)
+        super(V2VFusionTransformer, self).__init__(**kwargs)
 
-        self.encoder = build_transformer_layer_sequence(encoder)
-
+        self.decoder = build_transformer_layer_sequence(decoder)
+        if positional_encoding is not None:
+            self.positional_encoding = build_positional_encoding(positional_encoding)
         self.embed_dims = embed_dims
         self.num_feature_levels = num_feature_levels
-        self.num_cams = num_cams
+        self.num_cars = num_cars
         self.fp16_enabled = False
+        self.volume_h = volume_h
+        self.volume_w = volume_w
+        self.volume_z = volume_z
+
         self.use_cams_embeds = use_cams_embeds
 
         self.two_stage_num_proposals = two_stage_num_proposals
         self.init_layers()
         self.rotate_center = rotate_center
+        self.point_generator = MlvlPointGenerator([1])
+
 
     def init_layers(self):
         """Initialize layers of the Detr3DTransformer."""
-        self.level_embeds = nn.Parameter(torch.Tensor(
-            self.num_feature_levels, self.embed_dims))
-        self.cams_embeds = nn.Parameter(
-            torch.Tensor(self.num_cams, self.embed_dims))
-        self.reference_points = nn.Linear(self.embed_dims, 3)
-
+        self.level_embeds = nn.Embedding(self.num_cars, self.embed_dims)
+        self.cars_embeds = nn.Parameter(
+            torch.Tensor(self.num_cars, self.embed_dims))
+        self.volume_query = nn.Embedding(
+                    self.volume_h * self.volume_w * self.volume_z, self.embed_dims)
+        
     def init_weights(self):
         """Initialize the transformer weights."""
         for p in self.parameters():
@@ -76,54 +86,69 @@ class PerceptionTransformer(BaseModule):
                 except AttributeError:
                     m.init_weights()
         normal_(self.level_embeds)
-        normal_(self.cams_embeds)
+        normal_(self.cars_embeds)
         xavier_init(self.reference_points, distribution='uniform', bias=0.)
+        for p in self.decoder.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_normal_(p)
 
-    @auto_fp16(apply_to=('mlvl_feats', 'volume_queries'))
+    @auto_fp16(apply_to=('voxel_feats', 'volume_queries'))
     def forward(
             self,
-            mlvl_feats,
+            voxel_feats,
             volume_queries,
             volume_h,
             volume_w,
             volume_z,
             **kwargs):
 
-        bs = mlvl_feats[0].size(0)
-        volume_queries = volume_queries.unsqueeze(1).repeat(1, bs, 1)  
+        bs = voxel_feats[0].size(0)
+        bs, c, x, y, z = volume_queries.shape
 
+        padding_mask_resized = voxel_feats[0].new_zeros((bs, ) + volume_queries.shape[-3:], dtype=torch.bool)
+        query_pos = self.positional_encoding(padding_mask_resized)
+        # (h_i * w_i * d_i, 2)
+        reference_points = self.point_generator.single_level_grid_priors(
+            volume_queries.shape[-3:], 0, device=volume_queries.device)
+        # normalize points to [0, 1]
+        factor = volume_queries.new_tensor([[z, y, x]])
+        reference_points = reference_points / factor
+        volume_queries = volume_queries.flatten(2).permute(2,0,1)
+        query_pos = query_pos.flatten(2).permute(2,0,1)
         feat_flatten = []
         spatial_shapes = []
-        for lvl, feat in enumerate(mlvl_feats):
-            bs, num_cam, c, h, w = feat.shape
-            spatial_shape = (h, w)
-            feat = feat.flatten(3).permute(1, 0, 3, 2) #num_cam, bs, hw, c
-            
-            if self.use_cams_embeds:
-                feat = feat + self.cams_embeds[:, None, None, :].to(feat.dtype)
-
-            feat = feat + self.level_embeds[None,
-                                        None, lvl:lvl + 1, :].to(feat.dtype)
+        key_pos_list=[]
+        for lvl, feat in enumerate(voxel_feats):
+            padding_mask_resized = feat.new_zeros((bs, ) + feat.shape[-3:], dtype=torch.bool)
+            key_pos = self.positional_encoding(padding_mask_resized).flatten(2).permute(2,0,1)
+            _, _, x_i, y_i, z_i = feat.shape
+            spatial_shape = (x_i, y_i, z_i)
+            key_pos_list.append(key_pos)
             spatial_shapes.append(spatial_shape)
+            feat = feat.flatten(2).permute(2,0,1) # bs, hwz, c
             feat_flatten.append(feat)
 
-        feat_flatten = torch.cat(feat_flatten, 2)
+        feat_flatten = torch.cat(feat_flatten, 0)
+        key_pos_list = torch.cat(key_pos_list, dim=0)
         spatial_shapes = torch.as_tensor(
             spatial_shapes, dtype=torch.long, device=feat_flatten.device)
+
         level_start_index = torch.cat((spatial_shapes.new_zeros(
             (1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
+        reference_points = reference_points[None, :, None].repeat(
+            bs, 1, len(voxel_feats), 1)
 
-        feat_flatten = feat_flatten.permute(
-            0, 2, 1, 3)  # (num_cam, H*W, bs, embed_dims)
-
-        volume_embed = self.encoder(
-                volume_queries,
-                feat_flatten,
-                feat_flatten,
-                volume_h=volume_h,
-                volume_w=volume_w,
-                volume_z=volume_z,
+        volume_embed = self.decoder(
+                query=volume_queries,
+                key=feat_flatten,
+                value=feat_flatten,
+                query_pos=query_pos,
+                key_pos=key_pos_list,
+                attn_masks=None,
+                key_padding_mask=None,
+                query_key_padding_mask=None,
                 spatial_shapes=spatial_shapes,
+                reference_points=reference_points,
                 level_start_index=level_start_index,
                 **kwargs
             )

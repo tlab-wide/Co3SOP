@@ -65,15 +65,20 @@ class CopEncoder(TransformerLayerSequence):
         
         zs = torch.linspace(0.5, Z - 0.5, Z, dtype=dtype,
                             device=device).view(Z, 1, 1).expand(Z, H, W) / Z
+        
         xs = torch.linspace(0.5, W - 0.5, W, dtype=dtype,
                             device=device).view(1, 1, W).expand(Z, H, W) / W
         ys = torch.linspace(0.5, H - 0.5, H, dtype=dtype,
                             device=device).view(1, H, 1).expand(Z, H, W) / H
+        
+
         ref_3d = torch.stack((xs, ys, zs), -1)
-        ref_3d = ref_3d.permute(3, 0, 1, 2).flatten(1).permute(1, 0)
+        ref_3d = ref_3d.permute(3, 0, 1, 2)
+        ref_3d = ref_3d.flatten(1)
+
+        ref_3d = ref_3d.permute(1, 0)
         ref_3d = ref_3d[None, None].repeat(bs, 1, 1, 1)
         return ref_3d
-
 
     # This function must use fp32!!!
     @force_fp32(apply_to=('reference_points', 'img_metas'))
@@ -82,9 +87,10 @@ class CopEncoder(TransformerLayerSequence):
         lidar2img = []
         for img_meta in img_metas:
             lidar2img.append(img_meta['lidar2img'])
+
         lidar2img = np.asarray(lidar2img)
         lidar2img = reference_points.new_tensor(lidar2img)  # (B, N, 4, 4)
-        # print(lidar2img.size())
+
         reference_points = reference_points.clone()
 
         reference_points[..., 0:1] = reference_points[..., 0:1] * \
@@ -98,20 +104,18 @@ class CopEncoder(TransformerLayerSequence):
             (reference_points, torch.ones_like(reference_points[..., :1])), -1)
 
         reference_points = reference_points.permute(1, 0, 2, 3)
-        # print(reference_points.shape)
+
         D, B, num_query = reference_points.size()[:3]
-        # print(reference_points.size())
+
         reference_points = reference_points.view(
             D, B, 1, num_query, 4).repeat(1, 1, self.cam_num, 1, 1).unsqueeze(-1)
-        
+
         lidar2img = lidar2img.view(
             1, B, self.cam_num, 1, 4, 4).repeat(D, 1, 1, num_query, 1, 1)
-        # print(reference_points.size())
-        # print(lidar2img.size())
+
         reference_points_cam = torch.matmul(lidar2img.to(torch.float32),
                                             reference_points.to(torch.float32)).squeeze(-1)
-        
-        # print(reference_points_cam.shape)
+
         eps = 1e-5
 
         volume_mask = (reference_points_cam[..., 2:3] > eps)
@@ -133,7 +137,7 @@ class CopEncoder(TransformerLayerSequence):
 
         reference_points_cam = reference_points_cam.permute(2, 1, 3, 0, 4) #self.cam_num, B, num_query, D, 3
         volume_mask = volume_mask.permute(2, 1, 3, 0, 4).squeeze(-1)
-
+        
         return reference_points_cam, volume_mask
 
     @auto_fp16()
@@ -170,12 +174,10 @@ class CopEncoder(TransformerLayerSequence):
 
         ref_3d = self.get_reference_points(
                     volume_h, volume_w, volume_z, bs=volume_query.size(1),  device=volume_query.device, dtype=volume_query.dtype)
-        # print(ref_3d.shape)
+        
         reference_points_cam, volume_mask = self.point_sampling(
             ref_3d, self.pc_range, kwargs['img_metas'])
 
-
-        # (num_query, bs, embed_dims) -> (bs, num_query, embed_dims)
         volume_query = volume_query.permute(1, 0, 2)
 
         for lid, layer in enumerate(self.layers):

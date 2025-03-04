@@ -10,6 +10,7 @@ import warnings
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from mmcv.cnn import xavier_init, constant_init
 from mmcv.cnn.bricks.registry import (ATTENTION,
                                       TRANSFORMER_LAYER,
@@ -21,6 +22,7 @@ from mmcv.runner import force_fp32, auto_fp16
 from mmcv.runner.base_module import BaseModule, ModuleList, Sequential
 
 from mmcv.utils import ext_loader
+from mmcv.ops import multi_scale_deform_attn
 from .multi_scale_deformable_attn_function import MultiScaleDeformableAttnFunction_fp32, \
     MultiScaleDeformableAttnFunction_fp16
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
@@ -330,6 +332,7 @@ class MSDeformableAttention3D(BaseModule):
 
         bs, num_query, _ = query.shape
         bs, num_value, _ = value.shape
+
         assert (spatial_shapes[:, 0] * spatial_shapes[:, 1]).sum() == num_value
 
         value = self.value_proj(value)

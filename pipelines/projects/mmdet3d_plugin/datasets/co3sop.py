@@ -19,15 +19,18 @@ from projects.mmdet3d_plugin.models.utils.transformation_utils import cal_dist, 
 
 
 @DATASETS.register_module()
-class COP3DDataset(NuScenesDataset):
+class Co3SOP(NuScenesDataset):
     r"""NuScenes Dataset.
 
     This datset only add camera intrinsics and extrinsics to the results.
     """
 
-    def __init__(self, occ_size, pc_range, use_semantic=False, classes=None, overlap_test=False, max_connect_car=0, connect_range= 50, *args, **kwargs):
+    def __init__(self, occ_size, pc_range, use_semantic=False, classes=None, overlap_test=False, 
+                 max_connect_car=0, connect_range= 50, additional_root="additional", *args, **kwargs):
         self.occ_size = occ_size
+        self.additional_root = additional_root
         super().__init__(*args, **kwargs)
+        
         self.overlap_test = overlap_test
         self.max_connect_car = max_connect_car
         self.pc_range = pc_range
@@ -35,21 +38,12 @@ class COP3DDataset(NuScenesDataset):
         self.class_names = classes
         self._set_group_flag()
         self.connect_range = connect_range
-        # self.data_infos=[]
+        
         
     def load_annotations(self, ann_file):
-        # self.data_root
         data_infos = []
         self.train_data_root = os.path.join(self.data_root, self.ann_file)
-        if self.occ_size[2] == 24:
-            print("additional2")
-            additional = "additional2"
-        elif self.occ_size[2] == 48:
-            print("additional")
-            additional = "additional"
-        self.additional_train_data = os.path.join(self.data_root, f"{additional}/{self.ann_file}")
-        self.val_data_root = os.path.join(self.data_root, "train")
-        self.additional_val_data = os.path.join(self.data_root, f"{additional}/train")
+        self.additional_train_data = os.path.join(self.data_root, f"{self.additional_root}/{self.ann_file}")
         self.scenes = []
         self.vehicle_infos = {}
         data_infos = []
@@ -57,8 +51,8 @@ class COP3DDataset(NuScenesDataset):
         scene_num = 0
         for scene in os.listdir(self.train_data_root):
             scene_path = os.path.join(self.train_data_root, scene)
-            if scene == "2021_09_09_13_20_58":
-                continue
+            # if scene == "2021_09_09_13_20_58":
+            #     continue
             if not os.path.isdir(scene_path):
                 continue
             scene_num = scene_num+1
@@ -74,13 +68,11 @@ class COP3DDataset(NuScenesDataset):
                    continue
                 self.vehicle_infos[scene]["vehicles"].append(vehicle)
                 for frame in os.listdir(vehicle_path):
-                    if str(frame).endswith(".pcd"):
-                        frame_num = str(frame).split(".")[0]
-                        self.vehicle_infos[scene]["frames"].append(frame_num)
-                        data_infos.append((scene, vehicle, frame_num))
+                    splits = str(frame).split(".")
+                    if splits[1] == 'yaml' and splits[0].isdigit():
+                        self.vehicle_infos[scene]["frames"].append(splits[0])
+                        data_infos.append((scene, vehicle, splits[0]))
         return data_infos
-        # return None
-    
     
     def prepare_train_data(self, index):
         """Training data preparation.
@@ -96,9 +88,7 @@ class COP3DDataset(NuScenesDataset):
             return None
         self.pre_pipeline(input_dict)
         example = self.pipeline(input_dict)
-        # print(example['img_metas'])
-        # # print(example['img'][0].shape)
-        # print(example['gt_occ'].shape)
+
         return example
 
     def get_data_info(self, index):
@@ -121,7 +111,7 @@ class COP3DDataset(NuScenesDataset):
                 - ann_info (dict): Annotation info.
         """
         scene, vehicle, frame_num = self.data_infos[index]
-        # print(scene, vehicle, frame_num)
+
         neighbors = [x for x in self.vehicle_infos[scene]["vehicles"] if x != vehicle]
         frame = os.path.join(self.train_data_root, scene, vehicle, frame_num)
         data = {}
@@ -130,6 +120,7 @@ class COP3DDataset(NuScenesDataset):
         data["pc_range"] = self.pc_range
         data["img_filename"] = []
         data["lidar2img"] = []
+        data["lidar2cams"] = []
         data["cam_intrinsic"] = []
         data["pose"] = []
         data["trans2ego"] = []
@@ -139,6 +130,7 @@ class COP3DDataset(NuScenesDataset):
         data["img_filename"].extend(ego_info["imgs"])
         data["cam_intrinsic"].extend(ego_info["intrins"])
         data["lidar2img"].extend(ego_info["lidar2img"])
+        data["lidar2cams"].extend(ego_info["lidar2cams"])
         data["vehicle_id"].append(ego_info["vehicle_id"])
         data["pose"].append(ego_info["pose"])
         data["trans2ego"].append(np.asarray(x1_to_x2(ego_info["pose"], ego_info["pose"])))
@@ -146,35 +138,39 @@ class COP3DDataset(NuScenesDataset):
         near_neighbor = []
         for neighbor in neighbors:
             neighbor_info = self.get_vehicle_data(scene, neighbor, frame_num)
-            # print(cal_dist(neighbor_info["meta"]["pose"], ego_info["meta"]["pose"]))
+
             if cal_dist(neighbor_info["pose"], ego_info["pose"]) > self.connect_range:
                 continue
-            # print(neighbor, cal_dist(neighbor_info["pose"], ego_info["pose"]))
-            # neighbor_num = neighbor_num + 1
+
             near_neighbor.append(neighbor_info)
-        random.shuffle(near_neighbor)
+
+        near_neighbor = sorted(near_neighbor, key=lambda neighbor: cal_dist(neighbor["pose"], ego_info["pose"]))
         for neighbor_info in near_neighbor:
             if neighbor_num >= self.max_connect_car:
                 break
             data["img_filename"].extend(neighbor_info["imgs"])
             data["cam_intrinsic"].extend(neighbor_info["intrins"])
+            data["lidar2cams"].extend(neighbor_info["lidar2cams"])
             data["lidar2img"].extend(neighbor_info["lidar2img"])
             data["vehicle_id"].append(neighbor_info["vehicle_id"])
             data["pose"].append(neighbor_info["pose"])
             data["trans2ego"].append(np.asarray(x1_to_x2(neighbor_info["pose"], ego_info["pose"])))
             neighbor_num = neighbor_num +1
+
         for _ in range(self.max_connect_car-neighbor_num):
             data["img_filename"].extend(ego_info["imgs"])
             data["cam_intrinsic"].extend(ego_info["intrins"])
+            data["lidar2cams"].extend(ego_info["lidar2cams"])
             data["lidar2img"].extend(ego_info["lidar2img"])
             data["vehicle_id"].append(ego_info["vehicle_id"])
             data["pose"].append(ego_info["pose"])
             data["trans2ego"].append(np.asarray(x1_to_x2(ego_info["pose"], ego_info["pose"])))
-        # print(data["img_filename"])
+        
         return data
 
     def get_vehicle_data(self, scene, vehicle, frame_num):
         frame = os.path.join(self.train_data_root, scene, vehicle, frame_num)
+        
         meta_data = {}
         with open(frame+'.yaml','r') as f:
             meta_data = yaml.load(f, yaml.UnsafeLoader)
@@ -184,19 +180,17 @@ class COP3DDataset(NuScenesDataset):
         lidar2cams = []
         lidar2imgs = []
         for i in range(4):
-            # image = mmcv.imread(, 'unchanged')
             imgs.append(frame + f"_camera{i}.png")
-             # intrins
-            intrin = np.c_[np.array(meta_data[f"camera{i}"]["intrinsic"]), np.zeros(len(meta_data[f"camera{i}"]["intrinsic"]))]
+
+            intrin = np.array(meta_data[f"camera{i}"]["intrinsic"])
             viewpad = np.eye(4)
             viewpad[:intrin.shape[0], :intrin.shape[1]] = intrin
-            # extrins
-            lidar2cam = np.array(meta_data[f"camera{i}"]["extrinsic"])
-            lidar2img = np.array(viewpad @ lidar2cam)
-            # image.shape[0] = img.size[0]
-            # print(image.shape)
-            intrins.append(intrin)
-            lidar2cams.append(np.asarray(lidar2cam))
+
+            axis_trans = np.array([[0,1,0,0],[0,0,-1,0],[1,0,0,0],[0,0,0,1]])
+            lidar2img = np.array(viewpad @ axis_trans @ np.array(meta_data[f"camera{i}"]["extrinsic"]))
+
+            intrins.append(viewpad)
+            lidar2cams.append(np.array(meta_data[f"camera{i}"]["extrinsic"]))
             lidar2imgs.append(lidar2img)
 
         data = {
@@ -204,6 +198,7 @@ class COP3DDataset(NuScenesDataset):
             "vehicle_id": vehicle,
             "intrins": intrins,
             "lidar2img": lidar2imgs,
+            "lidar2cams": lidar2cams,
             "pose": pose,
         }
         return data
@@ -281,8 +276,7 @@ class COP3DDataset(NuScenesDataset):
         Returns:
             dict[str, float]: Results of each evaluation metric.
         """
-        # print(results[0])
-        # print(results[0].keys())
+        
         results, tmp_dir = self.format_results(results, jsonfile_prefix)
         results_dict = {}
         if self.use_semantic:
@@ -290,7 +284,7 @@ class COP3DDataset(NuScenesDataset):
             class_num = len(self.class_names)
             for i, name in enumerate(self.class_names):
                 class_names[i ] = self.class_names[i]
-            # print(results[0].shape)
+            
             results = np.stack(results, axis=0).mean(0)
             mean_ious = []
             

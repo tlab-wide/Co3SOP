@@ -8,12 +8,22 @@ def multiscale_supervision(gt_occ, ratio, gt_shape):
     change ground truth shape as (B, W, H, Z) for each level supervision
     '''
 
-    # gt = torch.zeros([gt_shape[0], gt_shape[2], gt_shape[3], gt_shape[4]]).to(gt_occ.device).type(torch.float) 
-    # for i in range(gt.shape[0]):
-    #     coords = gt_occ[i][:, :3].type(torch.long) // ratio
-    #     gt[i, coords[:, 0], coords[:, 1], coords[:, 2]] =  gt_occ[i][:, 3]
+    bs = gt_occ.shape[0]
+    gt_pts = []
+    for i in range(bs):
+        non_zeros = torch.nonzero(gt_occ[i])
+        values = gt_occ[i][non_zeros[:,0],non_zeros[:,1],non_zeros[:,2]]
+        pts = torch.cat([
+            non_zeros,
+            values.unsqueeze(1)
+        ], dim=1)
+        gt_pts.append(pts.float())
+    gt = torch.zeros([gt_shape[0], gt_shape[2], gt_shape[3], gt_shape[4]]).to(gt_occ.device).type(torch.float) 
+    for i in range(gt.shape[0]):
+        coords = gt_pts[i][:, :3].type(torch.long) // ratio
+        gt[i, coords[:, 0], coords[:, 1], coords[:, 2]] =  gt_pts[i][:, 3]
     
-    return gt_occ
+    return gt
 
 def geo_scal_loss(pred, ssc_target, semantic=True):
 
@@ -45,6 +55,53 @@ def geo_scal_loss(pred, ssc_target, semantic=True):
         + F.binary_cross_entropy_with_logits(spec, torch.ones_like(spec))
     )
 
+def sem_scal_loss_with_weights(pred, ssc_target, weights=None):
+    # Get softmax probabilities
+    pred = F.softmax(pred, dim=1)
+    loss = 0
+    count = 0
+    mask = ssc_target != 255
+    n_classes = pred.shape[1]
+    for i in range(0, n_classes):
+
+        # Get probability of class i
+        p = pred[:, i, :, :, :]
+
+        # Remove unknown voxels
+        target_ori = ssc_target
+        p = p[mask]
+        target = ssc_target[mask]
+
+        completion_target = torch.ones_like(target)
+        completion_target[target != i] = 0
+        completion_target_ori = torch.ones_like(target_ori).float()
+        completion_target_ori[target_ori != i] = 0
+        if torch.sum(completion_target) > 0:
+            count += 1.0
+            nominator = torch.sum(p * completion_target)
+            loss_class = 0
+            if torch.sum(p) > 0:
+                precision = nominator / (torch.sum(p))
+                loss_precision = F.binary_cross_entropy_with_logits(
+                    precision, torch.ones_like(precision)
+                )
+                loss_class += loss_precision
+            if torch.sum(completion_target) > 0:
+                recall = nominator / (torch.sum(completion_target))
+                loss_recall = F.binary_cross_entropy_with_logits(recall, torch.ones_like(recall))
+                loss_class += loss_recall
+            if torch.sum(1 - completion_target) > 0:
+                specificity = torch.sum((1 - p) * (1 - completion_target)) / (
+                    torch.sum(1 - completion_target)
+                )
+                loss_specificity = F.binary_cross_entropy_with_logits(
+                    specificity, torch.ones_like(specificity)
+                )
+                loss_class += loss_specificity
+            if weights!= None:
+                loss_class = weights[i] * loss_class
+            loss += loss_class
+    return loss / count
 
 def sem_scal_loss(pred, ssc_target):
     # Get softmax probabilities

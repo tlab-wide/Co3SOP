@@ -1,1 +1,1 @@
-from .cop3d_baseline import COP3DBaseline
+from .co3sop_base import Co3SOPBase

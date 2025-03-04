@@ -25,7 +25,7 @@ import pdb
 
 
 @DETECTORS.register_module()
-class COP3DBaseline(MVXTwoStageDetector):
+class Co3SOPBase(MVXTwoStageDetector):
     def __init__(self,
                  cam_num=4,
                  car_num=4,
@@ -49,7 +49,7 @@ class COP3DBaseline(MVXTwoStageDetector):
                  version='v1',
                  ):
 
-        super(COP3DBaseline,
+        super(Co3SOPBase,
               self).__init__(pts_voxel_layer, pts_voxel_encoder,
                              pts_middle_encoder, pts_fusion_layer,
                              img_backbone, pts_backbone, img_neck, pts_neck,
@@ -65,20 +65,14 @@ class COP3DBaseline(MVXTwoStageDetector):
 
         self.use_semantic = use_semantic
         self.is_vis = is_vis
-                  
-
 
     def extract_img_feat(self, img, img_metas, len_queue=None):
         """Extract features of images."""
         B = img.size(0)
         
         if img is not None:
-
-            if img.dim() == 5 and img.size(0) == 1:
-                img.squeeze_(0)
-            elif img.dim() == 5 and img.size(0) > 1:
-                B, N, C, H, W = img.size()
-                img = img.reshape(B * N, C, H, W)
+            B, N, C, H, W = img.size()
+            img = img.reshape(B * N, C, H, W)
             if self.use_grid_mask:
                 img = self.grid_mask(img)
 
@@ -103,9 +97,16 @@ class COP3DBaseline(MVXTwoStageDetector):
     def extract_feat(self, img, img_metas=None, len_queue=None):
         """Extract features from images and points."""
         # print("1")
-        img_feats = self.extract_img_feat(img, img_metas, len_queue=len_queue)
-        
-        return img_feats
+        # print(img.shape)
+        B, N, C, H, W = img.shape
+        assert N == self.cam_num*self.car_num
+        img = img.reshape(B, self.car_num, self.cam_num, C, H, W)
+        multi_img_feats=[]
+        for i in range(self.car_num):
+            img_i = img[:,i,:,:,:,:].contiguous()
+            img_feats = self.extract_img_feat(img_i, img_metas, len_queue=len_queue)
+            multi_img_feats.append(img_feats)
+        return multi_img_feats
 
 
     def forward_pts_train(self,
@@ -165,22 +166,16 @@ class COP3DBaseline(MVXTwoStageDetector):
         pred_occ = output['occ_preds']
         if type(pred_occ) == list:
             pred_occ = pred_occ[-1]
-        
-        if self.is_vis:
-            self.generate_output(pred_occ, img_metas)
-            return pred_occ.shape[0]
 
         if self.use_semantic:
             class_num = pred_occ.shape[1]
             _, pred_occ = torch.max(torch.softmax(pred_occ, dim=1), dim=1)
             eval_results = evaluation_semantic(pred_occ, gt_occ, img_metas[0], class_num)
-
         else:
             pred_occ = torch.sigmoid(pred_occ[:, 0])
             eval_results = evaluation_reconstruction(pred_occ, gt_occ, img_metas[0])
         return {'evaluation': eval_results}
         
-
 
     def simple_test_pts(self, x, img_metas, rescale=False):
         """Test function"""
@@ -193,76 +188,10 @@ class COP3DBaseline(MVXTwoStageDetector):
         # print("1")
         img_feats = self.extract_feat(img=img, img_metas=img_metas)
 
-        bbox_list = [dict() for i in range(len(img_metas))]
         output = self.simple_test_pts(
             img_feats, img_metas, rescale=rescale)
 
         return output
-
-    def generate_output(self, pred_occ, img_metas):
-        import open3d as o3d
-        
-        color_map = np.array(
-                [
-                    [0, 0, 0, 255],
-                    [255, 120, 50, 255],  # barrier              orangey
-                    [255, 192, 203, 255],  # bicycle              pink
-                    [255, 255, 0, 255],  # bus                  yellow
-                    [0, 150, 245, 255],  # car                  blue
-                    [0, 255, 255, 255],  # construction_vehicle cyan
-                    [200, 180, 0, 255],  # motorcycle           dark orange
-                    [255, 0, 0, 255],  # pedestrian           red
-                    [255, 240, 150, 255],  # traffic_cone         light yellow
-                    [135, 60, 0, 255],  # trailer              brown
-                    [160, 32, 240, 255],  # truck                purple
-                    [255, 0, 255, 255],  # driveable_surface    dark pink
-                    # [175,   0,  75, 255],       # other_flat           dark red
-                    [139, 137, 137, 255],
-                    [75, 0, 75, 255],  # sidewalk             dard purple
-                    [150, 240, 80, 255],  # terrain              light green
-                    [230, 230, 250, 255],  # manmade              white
-                    [0, 175, 0, 255],  # vegetation           green
-                ]
-            )
-        
-        if self.use_semantic:
-            _, voxel = torch.max(torch.softmax(pred_occ, dim=1), dim=1)
-        else:
-            voxel = torch.sigmoid(pred_occ[:, 0])
-        
-        for i in range(voxel.shape[0]):
-            x = torch.linspace(0, voxel[i].shape[0] - 1, voxel[i].shape[0])
-            y = torch.linspace(0, voxel[i].shape[1] - 1, voxel[i].shape[1])
-            z = torch.linspace(0, voxel[i].shape[2] - 1, voxel[i].shape[2])
-            X, Y, Z = torch.meshgrid(x, y, z)
-            vv = torch.stack([X, Y, Z], dim=-1).to(voxel.device)
-        
-            vertices = vv[voxel[i] > 0.5]
-            vertices[:, 0] = (vertices[:, 0] + 0.5) * (img_metas[i]['pc_range'][3] - img_metas[i]['pc_range'][0]) /  img_metas[i]['occ_size'][0]  + img_metas[i]['pc_range'][0]
-            vertices[:, 1] = (vertices[:, 1] + 0.5) * (img_metas[i]['pc_range'][4] - img_metas[i]['pc_range'][1]) /  img_metas[i]['occ_size'][1]  + img_metas[i]['pc_range'][1]
-            vertices[:, 2] = (vertices[:, 2] + 0.5) * (img_metas[i]['pc_range'][5] - img_metas[i]['pc_range'][2]) /  img_metas[i]['occ_size'][2]  + img_metas[i]['pc_range'][2]
-            
-            vertices = vertices.cpu().numpy()
-    
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(vertices)
-            if self.use_semantic:
-                semantics = voxel[i][voxel[i] > 0].cpu().numpy()
-                color = color_map[semantics] / 255.0
-                pcd.colors = o3d.utility.Vector3dVector(color[..., :3])
-                vertices = np.concatenate([vertices, semantics[:, None]], axis=-1)
-    
-            save_dir = os.path.join('visual_dir', img_metas[i]['occ_path'].replace('.npy', '').split('/')[-1])
-            os.makedirs(save_dir, exist_ok=True)
-
-
-            o3d.io.write_point_cloud(os.path.join(save_dir, 'pred.ply'), pcd)
-            np.save(os.path.join(save_dir, 'pred.npy'), vertices)
-            for cam_id, cam_path in enumerate(img_metas[i]['filename']):
-                os.system('cp {} {}/{}.jpg'.format(cam_path, save_dir, cam_id))
-
-
-    
     
     
     
