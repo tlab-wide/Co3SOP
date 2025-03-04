@@ -21,7 +21,7 @@ from .spatial_cross_attention import MSDeformableAttention3D
 from projects.mmdet3d_plugin.models.utils.bricks import run_time
 from mmcv.runner import force_fp32, auto_fp16
 from mmcv.cnn.bricks.transformer import build_positional_encoding
-from projects.mmdet3d_plugin.cop3d_baseline.modules.point_generator import MlvlPointGenerator
+from projects.mmdet3d_plugin.co3sop_base.modules.point_generator import MlvlPointGenerator
 
 @TRANSFORMER.register_module()
 class V2VFusionTransformer(BaseModule):

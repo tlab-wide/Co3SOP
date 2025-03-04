@@ -16,7 +16,7 @@ import random
 import mmcv
 import cv2 as cv
 from projects.mmdet3d_plugin.models.utils.visual import save_tensor
-from projects.mmdet3d_plugin.cop3d_baseline.loss.loss_utils import multiscale_supervision, geo_scal_loss, sem_scal_loss
+from projects.mmdet3d_plugin.co3sop_base.loss.loss_utils import multiscale_supervision, geo_scal_loss, sem_scal_loss
 from mmcv.cnn import build_conv_layer, build_norm_layer, build_upsample_layer
 from mmdet.models.utils import build_transformer
 from mmcv.cnn.utils.weight_init import constant_init
