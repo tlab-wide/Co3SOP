@@ -28,7 +28,11 @@ from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
 
 from mmcv.utils import TORCH_VERSION, digit_version
-
+import sys
+current_file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file_path)
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
 
 def parse_args():
@@ -125,9 +129,6 @@ def main():
                     _module_path = _module_path + '.' + m
                 print(_module_path)
                 # _module_path = "../projects.mmdet3d_plugin"
-                import sys
-                sys.path.append("/mnt/e/Projects/COG-3D/cop/includes/SurroundOcc")
-                print(sys.path)
                 plg_lib = importlib.import_module(_module_path)
             else:
                 # import dir is the dirpath for the config file
@@ -139,7 +140,7 @@ def main():
                 print(_module_path)
                 plg_lib = importlib.import_module(_module_path)
 
-            from projects.mmdet3d_plugin.surroundocc.apis.train import custom_train_model
+            from projects.mmdet3d_plugin.cop3d_baseline.apis.train import custom_train_model
     # set cudnn_benchmark
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True

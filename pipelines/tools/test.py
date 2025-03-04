@@ -16,15 +16,18 @@ from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
 
 from mmdet3d.apis import single_gpu_test
 from mmdet3d.datasets import build_dataset
-import sys
-sys.path.append("/mnt/e/Projects/COG-3D/cop/includes/SurroundOcc")
 from projects.mmdet3d_plugin.datasets.builder import build_dataloader
 from mmdet3d.models import build_model
 from mmdet.apis import set_random_seed
-from projects.mmdet3d_plugin.surroundocc.apis.test import custom_multi_gpu_test
+from projects.mmdet3d_plugin.cop3d_baseline.apis.test import custom_multi_gpu_test
 from mmdet.datasets import replace_ImageToTensor
 import time
 import os.path as osp
+import sys
+current_file_path = os.path.abspath(__file__)
+current_dir = os.path.dirname(current_file_path)
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
 
 def parse_args():
