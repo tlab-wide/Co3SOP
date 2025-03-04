@@ -73,7 +73,7 @@ class CustomDistEvalHook(BaseDistEvalHook):
         if tmpdir is None:
             tmpdir = osp.join(runner.work_dir, '.eval_hook')
 
-        from projects.mmdet3d_plugin.cop3d_baseline.apis.test import custom_multi_gpu_test # to solve circlur  import
+        from projects.mmdet3d_plugin.co3sop_base.apis.test import custom_multi_gpu_test # to solve circlur  import
 
         results = custom_multi_gpu_test(
             runner.model,

@@ -8,4 +8,4 @@ from .datasets.pipelines import (
 from .models.backbones.vovnet import VoVNet
 from .models.utils import *
 from .models.opt.adamw import AdamW2
-from .cop3d_baseline import *
+from .co3sop_base import *

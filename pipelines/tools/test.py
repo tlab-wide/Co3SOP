@@ -19,7 +19,7 @@ from mmdet3d.datasets import build_dataset
 from projects.mmdet3d_plugin.datasets.builder import build_dataloader
 from mmdet3d.models import build_model
 from mmdet.apis import set_random_seed
-from projects.mmdet3d_plugin.cop3d_baseline.apis.test import custom_multi_gpu_test
+from projects.mmdet3d_plugin.co3sop_base.apis.test import custom_multi_gpu_test
 from mmdet.datasets import replace_ImageToTensor
 import time
 import os.path as osp
@@ -151,9 +151,6 @@ def main():
 
                 for m in _module_dir[1:]:
                     _module_path = _module_path + '.' + m
-                import sys
-                sys.path.append("/mnt/e/Projects/COG-3D/cop/includes/SurroundOcc")
-                print(_module_path)
                 plg_lib = importlib.import_module(_module_path)
             else:
                 # import dir is the dirpath for the config file
