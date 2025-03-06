@@ -185,7 +185,7 @@ class Co3SOP(NuScenesDataset):
             intrin = np.array(meta_data[f"camera{i}"]["intrinsic"])
             viewpad = np.eye(4)
             viewpad[:intrin.shape[0], :intrin.shape[1]] = intrin
-
+            ## carla coordinate to opencv coordinate
             axis_trans = np.array([[0,1,0,0],[0,0,-1,0],[1,0,0,0],[0,0,0,1]])
             lidar2img = np.array(viewpad @ axis_trans @ np.array(meta_data[f"camera{i}"]["extrinsic"]))
 

@@ -30,7 +30,7 @@ ext_module = ext_loader.load_ext(
 
 
 @TRANSFORMER_LAYER_SEQUENCE.register_module()
-class CopEncoder(TransformerLayerSequence):
+class Encoder(TransformerLayerSequence):
 
     """
     Attention with both self and cross
@@ -44,7 +44,7 @@ class CopEncoder(TransformerLayerSequence):
     def __init__(self, *args, car_num=4, cam_num=4, pc_range=None, return_intermediate=False, dataset_type='nuscenes',
                  **kwargs):
 
-        super(CopEncoder, self).__init__(*args, **kwargs)
+        super(Encoder, self).__init__(*args, **kwargs)
         self.return_intermediate = return_intermediate
         self.car_num = car_num
         self.cam_num = cam_num
