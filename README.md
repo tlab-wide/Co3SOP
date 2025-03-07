@@ -11,7 +11,9 @@
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
-![Overview](Figs/overview.png)
+
+<!-- ![Overview](Figs/overview.png) -->
+
 ## Getting Start
 
 ## Benchmark Result 
