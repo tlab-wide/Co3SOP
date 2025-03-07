@@ -1,6 +1,6 @@
 
 
-# <center> COP-3D: Cooperative 3D Occupancy Prediction Dataset and Benchmark by Simulated Ground Truth Detection
+# <center> Co3SOP: A Collaborative 3D Semantic Occupancy Prediction Dataset and Benchmark for Autonomous Driving
 
 ## News
 
