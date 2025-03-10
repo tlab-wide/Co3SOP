@@ -24,6 +24,6 @@ cd ../../..
 pip install -r Docs/requirements.txt
 ```
 
-## Installation for Customized Annotation Collection (Option).
+## Installation for Customized Annotation Collection (Optional).
 
 Follow the [Carla official guidelines](https://carla.readthedocs.io/en/0.9.12/start_quickstart/).

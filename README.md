@@ -12,7 +12,7 @@
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
-
+To facilitate 3D semantic occupancy prediction in collaborative scenarios, we present a simulated dataset featuring a 3D semantic occupancy voxel sensor in Carla, which precisely and comprehensively annotate every surrounding voxel with semantic and occupancy states. In addition, we establish two benchmarks with varying detection ranges to investigate the impact of vehicle collaboration across different spatial extents and propose a baseline model that allows collaborative feature fusion. Experiments on our proposed benchmark demonstrate the superior performance of our baseline model.
 ![Overview](Figures/overview.png)
 
 ## Getting Start
@@ -23,7 +23,7 @@
 
 [Baseline Training and Evaluation](Docs/Baseline.md)
 
-[Customized Annotation Collection](Docs/AnnotationCollection.md) (Option)
+[Customized Annotation Collection](Docs/AnnotationCollection.md) (Optional)
 
 ## Benchmark Result 
 
