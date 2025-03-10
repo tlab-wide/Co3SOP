@@ -3,6 +3,7 @@
 # <center> Co3SOP: A Collaborative 3D Semantic Occupancy Prediction Dataset and Benchmark for Autonomous Driving
 
 ## News
+- [2025/03/10] The annotations for 3D semantic occupancy prediction are uploaded [here](https://huggingface.co/datasets/WuHanlin1997/Co3SOP/tree/main).
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -12,9 +13,17 @@
 
 ## Introduction
 
-<!-- ![Overview](Figs/overview.png) -->
+![Overview](Figures/overview.png)
 
 ## Getting Start
+
+[Dataset Preparation](Docs/DatasetPreparation.md)
+
+[Installation](Docs/Installation.md)
+
+[Baseline Training and Evaluation](Docs/Baseline.md)
+
+[Customized Annotation Collection](Docs/AnnotationCollection.md) (Option)
 
 ## Benchmark Result 
 
