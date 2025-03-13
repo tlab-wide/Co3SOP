@@ -5,7 +5,8 @@
 conda create -n co3sop python=3.7 -y
 conda activate co3sop
 ## torch and cuda
-conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
+conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 cudatoolkit-dev==11.3.1 -c pytorch -c conda-forge
+conda install -c omgarcia gcc-6
 ## mmcv
 pip install openmim
 mim install mmcv-full==1.4.0
