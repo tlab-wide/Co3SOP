@@ -26,7 +26,7 @@ class Co3SOP(NuScenesDataset):
     """
 
     def __init__(self, occ_size, pc_range, use_semantic=False, classes=None, overlap_test=False, 
-                 max_connect_car=0, connect_range= 50, additional_root="additional", *args, **kwargs):
+                 max_connect_car=0, connect_range= 50, additional_root="additional", pose_noise=None, *args, **kwargs):
         self.occ_size = occ_size
         self.additional_root = additional_root
         super().__init__(*args, **kwargs)
@@ -36,6 +36,7 @@ class Co3SOP(NuScenesDataset):
         self.pc_range = pc_range
         self.use_semantic = use_semantic
         self.class_names = classes
+        self.pose_noise = pose_noise
         self._set_group_flag()
         self.connect_range = connect_range
         
@@ -90,7 +91,19 @@ class Co3SOP(NuScenesDataset):
         example = self.pipeline(input_dict)
 
         return example
-
+    def add_pose_noise(self, pose, pos_mean=0.3, pos_std=0.02, yaw_std_deg=2.0):
+        x, y, z, roll, yaw, pitch = pose[:]
+        ## location noise
+        dx = np.random.normal(loc=pos_mean, scale=pos_std)
+        dy = np.random.normal(loc=pos_mean, scale=pos_std)
+        dz = np.random.normal(loc=0.0, scale=0.01)
+        ## rotation noise
+        dyaw = 0
+        if yaw_std_deg is not None:
+            dyaw_deg = np.random.normal(loc=0.0, scale=yaw_std_deg)
+            dyaw = np.deg2rad(dyaw_deg)
+        return (x + dx, y + dy, z + dz, roll, yaw + dyaw,  pitch)
+    
     def get_data_info(self, index):
         """Get data info according to the given index.
 
@@ -110,6 +123,7 @@ class Co3SOP(NuScenesDataset):
                     from lidar to different cameras.
                 - ann_info (dict): Annotation info.
         """
+        # print(index)
         scene, vehicle, frame_num = self.data_infos[index]
 
         neighbors = [x for x in self.vehicle_infos[scene]["vehicles"] if x != vehicle]
@@ -153,6 +167,11 @@ class Co3SOP(NuScenesDataset):
             data["lidar2cams"].extend(neighbor_info["lidar2cams"])
             data["lidar2img"].extend(neighbor_info["lidar2img"])
             data["vehicle_id"].append(neighbor_info["vehicle_id"])
+            if self.pose_noise is not None:
+                neighbor_info["pose"] = self.add_pose_noise(neighbor_info["pose"],
+                                                            pos_mean=self.pose_noise["pos_mean"],
+                                                            pos_std=self.pose_noise["pos_std"],
+                                                            yaw_std_deg=self.pose_noise["yaw_std_deg"])
             data["pose"].append(neighbor_info["pose"])
             data["trans2ego"].append(np.asarray(x1_to_x2(neighbor_info["pose"], ego_info["pose"])))
             neighbor_num = neighbor_num +1

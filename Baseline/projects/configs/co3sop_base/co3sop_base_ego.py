@@ -6,16 +6,15 @@ _base_ = [
 plugin = True
 plugin_dir = 'projects/mmdet3d_plugin/'
 
-# If point cloud range is changed, the models should also change their point
-# cloud range accordingly
-point_cloud_range = [-25.6, -25.6, -2.0, 25.6, 25.6, 2.8]
-occ_size = [256, 256, 24]
+## change the point cloud range and size to match the dataset
+point_cloud_range = [-38.4, -38.4, -2.0, 38.4, 38.4, 2.8]
+occ_size = [256, 256, 16]
+
 cam_num = 4
-max_connect_car = 2
-max_connect_range = 56
+max_connect_car = 0
+max_connect_range = 76
 use_semantic = True
 
-# fp16 = dict(loss_scale='dynamic')
 img_norm_cfg = dict(
     mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
 
@@ -35,7 +34,7 @@ _dim_ = [192]
 _ffn_dim_ = [384]
 volume_h_ = [64]
 volume_w_ = [64]
-volume_z_ = [6]
+volume_z_ = [4]
 _num_points_ = [4]
 _num_layers_ = [3]
 
@@ -191,7 +190,8 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        box_type_3d='LiDAR'),
+        box_type_3d='LiDAR',
+        additional_root="additional"),
     val=dict(
         type=dataset_type,
         data_root=data_root,
@@ -203,7 +203,8 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        modality=input_modality),
+        modality=input_modality,
+        additional_root="additional"),
     test=dict(
         type=dataset_type,
         data_root=data_root,
@@ -215,7 +216,8 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        modality=input_modality),
+        modality=input_modality,
+        additional_root="additional"),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
 )

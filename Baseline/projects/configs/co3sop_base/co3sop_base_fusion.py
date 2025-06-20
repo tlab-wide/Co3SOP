@@ -6,16 +6,23 @@ _base_ = [
 plugin = True
 plugin_dir = 'projects/mmdet3d_plugin/'
 
-# If point cloud range is changed, the models should also change their point
-# cloud range accordingly
-point_cloud_range = [-12.8, -12.8, -2.0, 12.8, 12.8, 2.8]
-occ_size = [256, 256, 48]
+## change the point cloud range and size to match the dataset
+point_cloud_range = [-38.4, -38.4, -2.0, 38.4, 38.4, 2.8]
+occ_size = [256, 256, 16]
+
 cam_num = 4
 max_connect_car = 1
-max_connect_range = 28
+max_connect_range = 150
 use_semantic = True
+fusion_layers = 3
+## change the pose_noise for test
+pose_noise = None
+# pose_noise = {
+#     "pos_mean": 0.5,
+#     "pos_std": 0.02,
+#     "yaw_std_deg": None
+# }
 
-# fp16 = dict(loss_scale='dynamic')
 img_norm_cfg = dict(
     mean=[103.530, 116.280, 123.675], std=[1.0, 1.0, 1.0], to_rgb=False)
 
@@ -35,7 +42,7 @@ _dim_ = [192]
 _ffn_dim_ = [384]
 volume_h_ = [64]
 volume_w_ = [64]
-volume_z_ = [12]
+volume_z_ = [4]
 _num_points_ = [4]
 _num_layers_ = [3]
 
@@ -50,7 +57,7 @@ model = dict(
        depth=101,
        num_stages=4,
        out_indices=(1,2,3),
-       frozen_stages=1,
+       frozen_stages=4,
        norm_cfg=dict(type='BN2d', requires_grad=False),
        norm_eval=True,
        style='caffe',
@@ -65,9 +72,11 @@ model = dict(
         add_extra_convs='on_output',
         num_outs=4,
         relu_before_extra_convs=True,
+        freeze=True,
         ),
     pts_bbox_head=dict(
         type='V2VOccHead',
+        freeze=True,
         max_connect_car=max_connect_car,
         volume_h=volume_h_,
         volume_w=volume_w_,
@@ -123,28 +132,28 @@ model = dict(
             volume_w=volume_w_[0],
             volume_z=volume_z_[0],
             decoder=dict(
-            type='DetrTransformerEncoder',
-            num_layers=1,
-            transformerlayers=dict(
-                type='BaseTransformerLayer',
-                attn_cfgs=dict(
-                    type='MultiScaleDeformableAttention3D',
+                type='DetrTransformerEncoder',
+                num_layers=fusion_layers,
+                transformerlayers=dict(
+                    type='OccLayer',
                     embed_dims=_dim_[0],
-                    num_heads=8,
-                    num_levels=max_connect_car,
-                    num_points=8,
-                    im2col_step=64,
-                    dropout=0.0,
-                    batch_first=False,
-                    norm_cfg=None,
-                    init_cfg=None),
-                ffn_cfgs=dict(
-                    embed_dims=_dim_[0],
-                    feedforward_channels=_dim_[0] * 4,
-                    ffn_dropout=0.0,),
-                operation_order=('cross_attn', 'norm', 'ffn', 'norm')),
-            init_cfg=None),
-                
+                    feedforward_channels=_ffn_dim_[0],
+                    ffn_dropout=0.1,
+                    attn_cfgs=dict(
+                        type='VoxelCrossAttention',
+                        pc_range=point_cloud_range,
+                        num_cars=max_connect_car,
+                        deformable_attention=dict(
+                            type='MultiScaleDeformableAttention3D',
+                            batch_first=True,
+                            embed_dims=_dim_[0],
+                            num_heads=4,
+                            num_points=4,
+                            num_levels=1),
+                        embed_dims=_dim_[0],),
+                    conv_num=2,
+                    operation_order=('cross_attn', 'norm', 'ffn', 'norm', 'conv')),
+                init_cfg=None),
         )
 ),
 )
@@ -176,7 +185,9 @@ test_pipeline = [
 find_unused_parameters = True
 data = dict(
     samples_per_gpu=1,
-    workers_per_gpu=4,
+    workers_per_gpu=16,
+    persistent_workers=True,
+    pin_memory=True,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -191,7 +202,8 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        box_type_3d='LiDAR'),
+        box_type_3d='LiDAR',
+        additional_root="additional"),
     val=dict(
         type=dataset_type,
         data_root=data_root,
@@ -203,11 +215,13 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        modality=input_modality),
+        modality=input_modality,
+        additional_root="additional",
+        pose_noise=pose_noise),
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file='test',
+        ann_file='validate',
         max_connect_car=max_connect_car,
         connect_range=max_connect_range,
         pipeline=test_pipeline, 
@@ -215,14 +229,16 @@ data = dict(
         pc_range=point_cloud_range,
         use_semantic=use_semantic,
         classes=class_names,
-        modality=input_modality),
+        modality=input_modality,
+        additional_root="additional",
+        pose_noise=pose_noise),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
 )
 
 optimizer = dict(
     type='AdamW',
-    lr=2e-4,
+    lr=4e-5,
     paramwise_cfg=dict(
         custom_keys={
             'img_backbone': dict(lr_mult=0.1),
@@ -239,11 +255,11 @@ lr_config = dict(
     warmup_ratio=1.0 / 3,
     min_lr_ratio=1e-3)
 
-total_epochs = 24
+total_epochs = 12
 evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = 'ckpts/r101_dcn_fcos3d_pretrain.pth'
+load_from = 'path to ego.pth'
 
 log_config = dict(
     interval=100,

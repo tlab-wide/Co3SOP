@@ -1,5 +1,6 @@
 from .transformer import PerceptionTransformer
 from .spatial_cross_attention import SpatialCrossAttention, MSDeformableAttention3D
+from .voxel_cross_attention import VoxelCrossAttention
 from .encoder import Encoder, OccLayer
 from .custom_fpn import CustomFPN
 from .positional_encoding import SinePositionalEncoding3D

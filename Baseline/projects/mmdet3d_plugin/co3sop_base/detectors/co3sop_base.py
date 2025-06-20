@@ -47,6 +47,7 @@ class Co3SOPBase(MVXTwoStageDetector):
                  use_semantic=True,
                  is_vis=False,
                  version='v1',
+                 freeze_ego=False
                  ):
 
         super(Co3SOPBase,
@@ -65,6 +66,15 @@ class Co3SOPBase(MVXTwoStageDetector):
 
         self.use_semantic = use_semantic
         self.is_vis = is_vis
+        self.freeze_ego = freeze_ego
+        if self.freeze_ego:
+            self.img_backbone.eval()
+            for param in self.img_backbone.parameters():
+                param.requires_grad = False
+            self.img_neck.eval()
+            for param in self.img_neck.parameters():
+                param.requires_grad = False
+
 
     def extract_img_feat(self, img, img_metas, len_queue=None):
         """Extract features of images."""
@@ -99,10 +109,10 @@ class Co3SOPBase(MVXTwoStageDetector):
         # print("1")
         # print(img.shape)
         B, N, C, H, W = img.shape
-        assert N == self.cam_num*self.car_num
-        img = img.reshape(B, self.car_num, self.cam_num, C, H, W)
+        car_num = N//self.cam_num
+        img = img.reshape(B, car_num, self.cam_num, C, H, W)
         multi_img_feats=[]
-        for i in range(self.car_num):
+        for i in range(car_num):
             img_i = img[:,i,:,:,:,:].contiguous()
             img_feats = self.extract_img_feat(img_i, img_metas, len_queue=len_queue)
             multi_img_feats.append(img_feats)

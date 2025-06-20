@@ -161,7 +161,7 @@ class V2VOccHead(nn.Module):
         self.v2v_transformer = v2v_transformer
         self._init_layers()
         if self.freeze:
-            self._freeze_stages()
+            self._freeze_ego()
 
     def _init_layers(self):
         self.transformer = nn.ModuleList()
@@ -238,13 +238,22 @@ class V2VOccHead(nn.Module):
             else:
                 occ = build_conv_layer(
                     conv_cfg,
-                    in_channels=out_channels[i],
+                    in_channels=self.transformer_template.embed_dims,
                     out_channels=1,
                     kernel_size=1,
                     stride=1,
                     padding=0)
                 self.occ.append(occ)
-
+        self.confidence = nn.Sequential(
+            build_conv_layer(
+                conv_cfg,
+                in_channels=192,
+                out_channels=1,
+                kernel_size=1,
+                stride=1,
+                padding=0),
+            nn.Sigmoid()
+        )
         self.volume_embedding = nn.ModuleList()
         for i in range(self.fpn_level):
             self.volume_embedding.append(nn.Embedding(
@@ -264,6 +273,7 @@ class V2VOccHead(nn.Module):
     def forward(self, mcar_feats, img_metas):
         car_num = len(mcar_feats)
         volume_embed = []
+        confidences = []
         for car in range(car_num):
             mlvl_feats = mcar_feats[car]
             bs, num_cam, _, _, _ = mlvl_feats[0].shape
@@ -284,14 +294,16 @@ class V2VOccHead(nn.Module):
                     volume_w=volume_w,
                     volume_z=volume_z,
                     img_metas=cur_img_metas
-                ).reshape(bs, volume_z, volume_h, volume_w, -1).permute(0, 4, 3, 2, 1)
+                ).reshape(bs, volume_z, volume_h, volume_w, -1).permute(0, 4, 1, 2, 3).contiguous()
 
             volume_embed.append(volume_embed_i)
+            confidences.append(self.confidence(volume_embed_i))
         
         features = volume_embed
 
-        bs, C, H, W, Z = volume_embed[0].shape
+        bs, C, Z, H, W = volume_embed[0].shape
         
+        # if self.max_connect_car > 0:
         voxel_size = 0.1 * 48 / Z
         batch_transform_matrix = []
         for meta in img_metas:
@@ -306,7 +318,7 @@ class V2VOccHead(nn.Module):
         batch_transform_matrix = torch.Tensor(np.array(batch_transform_matrix)).to(features[0].device)
         batch_transform_matrix = get_discretized_transformation_matrix_3d(batch_transform_matrix, voxel_size, 1)
         batch_transform_matrix = batch_transform_matrix.view(bs*car_num, 3, 4)
-        batch_transform_matrix = get_transformation_matrix_3d(batch_transform_matrix, (H,W,Z)).view(bs, car_num, 3, 4)
+        batch_transform_matrix = get_transformation_matrix_3d(batch_transform_matrix, (W,H,Z)).view(bs, car_num, 3, 4)
         batch_fuse_features = []
         
         for b in range(bs):
@@ -318,42 +330,60 @@ class V2VOccHead(nn.Module):
                     neighbor_feature = neighbor_feature*0
                 else:
                     neighbor_feature = kornia.geometry.transform.warp_affine3d(
-                                neighbor_feature.permute(0,1,4,3,2), 
-                                batch_transform_matrix[b,neighbor,:3,:].unsqueeze(0), (Z,W,H), 
+                                neighbor_feature, 
+                                batch_transform_matrix[b,neighbor,:3,:].unsqueeze(0), (Z,H,W), 
                                 flags='bilinear',
                                 padding_mode='zeros', 
                                 align_corners=True)
-                    neighbor_feature = neighbor_feature.permute(0,1,4,3,2)
+                    confidence_neighbor = kornia.geometry.transform.warp_affine3d(
+                                confidences[neighbor][b,...].unsqueeze(0), 
+                                batch_transform_matrix[b,neighbor,:3,:].unsqueeze(0), (Z,H,W), 
+                                flags='bilinear',
+                                padding_mode='zeros', 
+                                align_corners=True)
+                    confidence_mask = (confidence_neighbor > confidences[0]).float()
+                    neighbor_feature = neighbor_feature * confidence_mask
                 fuse_features.append(neighbor_feature)
 
             if len(fuse_features) > 0:
                 fuse_features = self.v2v_fuse(
                     fuse_features,
                     ego_feature,
-                    H,W,Z,
+                    Z,H,W,
                     img_metas=img_metas).reshape(
-                        bs, H, W, Z, -1).permute(0, 4, 1, 2, 3)
+                        bs, Z, H, W, -1)
             else:
-                fuse_features = ego_feature
+                # print(ego_feature.shape)
+                fuse_features = ego_feature.permute(0, 2, 3, 4, 1).contiguous()
             batch_fuse_features.append(fuse_features)
 
-        batch_fuse_features = torch.cat(batch_fuse_features, dim=0)
-        
+        batch_fuse_features = torch.cat(batch_fuse_features, dim=0).permute(0, 4, 3, 2, 1).contiguous()
+        # print(batch_fuse_features.requires_grad)
+        ego_feature = features[0][b,...].unsqueeze(0).permute(0, 1, 4, 3, 2).contiguous()
+        # print(ego_feature.shape)
+        # print(batch_fuse_features.shape)
         outputs = []
-        result = batch_fuse_features
+        # result = batch_fuse_features
+        # for i in range(len(self.deblocks)):
+        #     ego_feature = self.deblocks[i](ego_feature)
+        #     if i in self.out_indices:
+        #         outputs.append(ego_feature)
+
         for i in range(len(self.deblocks)):
-            result = self.deblocks[i](result)
+            batch_fuse_features = self.deblocks[i](batch_fuse_features)
             if i in self.out_indices:
-                outputs.append(result)
+                outputs.append(batch_fuse_features)
 
         occ_preds = []
         for i in range(len(outputs)):
             occ_pred = self.occ[i](outputs[i])
+            # print(occ_pred.shape)
             occ_preds.append(occ_pred)
-
+        ego_confidence = confidences[0].permute(0, 1, 4, 3, 2).contiguous()
         outs = {
             'volume_embed': volume_embed,
             'occ_preds': occ_preds,
+            'confidences': ego_confidence
         }
 
         return outs
@@ -385,50 +415,63 @@ class V2VOccHead(nn.Module):
             criterion = nn.CrossEntropyLoss(
                 ignore_index=255, reduction="mean"
             )
+            conf_criterion = nn.MSELoss()
             loss_dict = {}
             for i in range(len(preds_dicts['occ_preds'])):
                 pred = preds_dicts['occ_preds'][i].float()
-                ratio = 2**(len(preds_dicts['occ_preds']) - 1 - i)
+                ratio = int(2**(len(preds_dicts['occ_preds']) - 1 - i))
                 gt = multiscale_supervision(gt_occ.clone(), ratio, preds_dicts['occ_preds'][i].shape)
+                
                 criterion_loss = criterion(pred, gt.long())
                 sem_loss = sem_scal_loss(pred, gt.long())
                 gep_loss = geo_scal_loss(pred, gt.long())
                 loss_occ_i = (criterion_loss+gep_loss+sem_loss)
                 loss_occ_i = loss_occ_i * ((0.5)**(len(preds_dicts['occ_preds']) - 1 -i))
+                # print(pred.shape)
+                # print(preds_dicts['confidences'].shape)
+                if pred.shape[-3:] == preds_dicts['confidences'].shape[-3:]:
+                    gt_onehot = F.one_hot(gt.long(), num_classes=pred.shape[1]).permute(0, 4, 1, 2, 3).float()
+                    pred_prob = F.softmax(pred, dim=1)
+                    target_conf = (pred_prob * gt_onehot).sum(dim=1, keepdim=True)
+                    loss_conf = conf_criterion(preds_dicts['confidences'].float(), target_conf)
+                    loss_dict['loss_conf_{}'.format(i)] = loss_conf
                 loss_dict['loss_occ_{}'.format(i)] = loss_occ_i
 
         return loss_dict
 
-    def _freeze_stages(self):
+    def _freeze_ego(self):
+        print("freeze_ego")
         for layer in self.transformer:
             layer.eval()
             for param in layer.parameters():
                 param.requires_grad = False
 
-        for layer in self.deblocks:
-            layer.eval()
-            for param in layer.parameters():
-                param.requires_grad = False
+        # for layer in self.deblocks:
+        #     layer.eval()
+        #     for param in layer.parameters():
+        #         param.requires_grad = False
 
         for layer in self.volume_embedding:
             layer.eval()
             for param in layer.parameters():
                 param.requires_grad = False
+        self.confidence.eval()
+        for param in self.confidence.parameters():
+            param.requires_grad = False
+        # for layer in self.transfer_conv:
+        #     layer.eval()
+        #     for param in layer.parameters():
+        #         param.requires_grad = False
 
-        for layer in self.transfer_conv:
-            layer.eval()
-            for param in layer.parameters():
-                param.requires_grad = False
-
-        for layer in self.occ:
-            layer.eval()
-            for param in layer.parameters():
-                param.requires_grad = False
+        # for layer in self.occ:
+        #     layer.eval()
+        #     for param in layer.parameters():
+        #         param.requires_grad = False
 
     def train(self, mode=True):
         """Convert the model into training mode 
         while keep normalization layerfreezed."""
         super(V2VOccHead, self).train(mode)
         if self.freeze:
-            self._freeze_stages()
+            self._freeze_ego()
         
