@@ -3,6 +3,7 @@
 # <center> Co3SOP: A Synthetic Benchmark for Collaborative 3D Semantic Occupancy Prediction in V2X Autonomous Driving 
 
 ## News
+- [2025/06/20] The preprint version is available on [arXiv](https://www.arxiv.org/abs/2506.17004)
 - [2025/03/10] The annotations for 3D semantic occupancy prediction are uploaded [here](https://huggingface.co/datasets/WuHanlin1997/Co3SOP/tree/main).
 
 ## Table of Contents
@@ -73,7 +74,16 @@
 
 </div>
 
-
+## Citation
+If you find our work useful for your research, please consider citing the paper:
+```bash
+@article{wu2025synthetic,
+  title={A Synthetic Benchmark for Collaborative 3D Semantic Occupancy Prediction in V2X Autonomous Driving},
+  author={Wu, Hanlin and Lin, Pengfei and Javanmardi, Ehsan and Bao, Naren and Qian, Bo and Si, Hao and Tsukada, Manabu},
+  journal={arXiv preprint arXiv:2506.17004},
+  year={2025}
+}
+```
 
 ## Acknowledgements
 Many thanks to these excellent projects:
