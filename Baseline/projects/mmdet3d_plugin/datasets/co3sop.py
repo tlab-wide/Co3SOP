@@ -52,8 +52,9 @@ class Co3SOP(NuScenesDataset):
         scene_num = 0
         for scene in os.listdir(self.train_data_root):
             scene_path = os.path.join(self.train_data_root, scene)
-            # if scene == "2021_09_09_13_20_58":
-            #     continue
+            ## This scene does not have camera 3
+            if scene == "2021_09_09_13_20_58":
+                continue
             if not os.path.isdir(scene_path):
                 continue
             scene_num = scene_num+1
