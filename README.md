@@ -12,8 +12,13 @@
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
-To facilitate 3D semantic occupancy prediction in collaborative scenarios, we present a simulated dataset featuring a 3D semantic occupancy voxel sensor in Carla, which precisely and comprehensively annotate every surrounding voxel with semantic and occupancy states. In addition, we establish two benchmarks with varying detection ranges to investigate the impact of vehicle collaboration across different spatial extents and propose a baseline model that allows collaborative feature fusion. Experiments on our proposed benchmark demonstrate the superior performance of our baseline model.
+3D semantic occupancy prediction is an emerging perception paradigm in autonomous driving, providing a voxel-level representation of both geometric details and semantic categories. However, the perception capability of a single vehicle is inherently constrained by occlusion, restricted sensor range, and narrow viewpoints. To address these limitations, collaborative perception enables the exchange of complementary information, thereby enhancing the completeness and accuracy. In the absence of a dedicated dataset for collaborative 3D semantic occupancy prediction, we augment an existing collaborative perception dataset by replaying it in CARLA with a high-resolution semantic voxel sensor to provide dense and comprehensive occupancy annotations. In addition, we establish benchmarks with varying prediction ranges designed to systematically assess the impact of spatial extent on collaborative prediction. We further develop a baseline model that performs inter-agent feature fusion via spatial alignment and attention aggregation. Experimental results demonstrate that our baseline model consistently outperforms single-agent models, with increasing gains observed as the prediction range expands.
+
+## Annotation Pipeline
 ![Overview](Figures/Annotating.png)
+
+## Baseline Model
+![Overview](Figures/Baseline.png)
 
 ## Getting Start
 
