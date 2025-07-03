@@ -14,7 +14,7 @@ from logreplay.sensors.base_sensor import BaseSensor
 
 
 class VoxelDetection(BaseSensor):
-    def __init__(self, agent_id, vehicle, world, config, global_position):
+    def __init__(self, agent_id, vehicle, world, config, global_position, detail_config):
         super().__init__(agent_id, vehicle, world, config, global_position)
 
         if vehicle is not None:
@@ -71,7 +71,6 @@ class VoxelDetection(BaseSensor):
         self.data = event
         self.Update = True
         print("set voxel")
-        
 
     def tick(self):
         
@@ -154,13 +153,6 @@ class VoxelDetection(BaseSensor):
         mlab.show()
     
     def destroy(self):
-        # if not self.world.get_actor(self.sensor.id):
         self.sensor.destroy()
-        
-    # def visualize_data(self):
-    #     if self.draw_process is not None:
-    #         self.draw_process.kill()
 
-    #     self.draw_process = Process(target=VoxelDetection.draw, args=(self.voxels,self.agent_id,))
-    #     self.draw_process.start()
         
