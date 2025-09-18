@@ -37,7 +37,7 @@ class VoxelDetection(BaseSensor):
         blueprint.set_attribute('self_ignore', str(self.self_ignore))
         blueprint.set_attribute('draw_debug', str(int(config['draw_debug'])))
         
-        spawn_point = carla.Transform(carla.Location(z=0))
+        spawn_point = carla.Transform(carla.Location(x=-0.5,y=0,z=1.9))
 
         self.name = 'voxel_detection' + str(self.agent_id)
 

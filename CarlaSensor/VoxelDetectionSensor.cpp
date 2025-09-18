@@ -75,11 +75,12 @@ void AVoxelDetectionSensor::Set(const FActorDescription &Description)
 		"detected_len",
 		Description.Variations,
 		50.0f);
-	this->Top = this->GetOwner()->GetActorLocation().Z + M_TO_CM*UActorBlueprintFunctionLibrary::RetrieveActorAttributeToFloat(
+	
+	this->Top = M_TO_CM*UActorBlueprintFunctionLibrary::RetrieveActorAttributeToFloat(
 		"top_boundary",
 		Description.Variations,
 		10.0f);
-	this->Bottom = this->GetOwner()->GetActorLocation().Z +  M_TO_CM*UActorBlueprintFunctionLibrary::RetrieveActorAttributeToFloat(
+	this->Bottom = M_TO_CM*UActorBlueprintFunctionLibrary::RetrieveActorAttributeToFloat(
 		"bottom_boundary",
 		Description.Variations,
 		-1.0f);
@@ -109,24 +110,23 @@ void AVoxelDetectionSensor::SetOwner(AActor *NewOwner)
 void AVoxelDetectionSensor::PostPhysTick(UWorld *World, ELevelTick TickType, float DeltaTime)
 {
 	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(this);
 	if (SelfIgnore > 0)
 	{
 		ActorsToIgnore.Add(this->GetOwner());
 	}
-	auto ac = this->GetOwner();
 	Array3D<int32> SemanticVoxels = Array3D<int32>(int(2*this->DetectedLen/this->BoxSize),int(2*this->DetectedLen/this->BoxSize),int((this->Top-this->Bottom)/this->BoxSize), -1);
 	Array3D<bool> visited = Array3D<bool>(int(2*this->DetectedLen/this->BoxSize),int(2*this->DetectedLen/this->BoxSize),int((this->Top-this->Bottom)/this->BoxSize), false);
 	const FVector Size = FVector{this->DetectedLen, this->DetectedLen, this->Top-this->Bottom};
-	const FVector Start = FVector{this->GetOwner()->GetActorLocation().X,this->GetOwner()->GetActorLocation().Y, this->Top};
-	const FVector End = FVector{this->GetOwner()->GetActorLocation().X,this->GetOwner()->GetActorLocation().Y, this->Bottom};
+	const FVector Start = FVector{this->GetActorLocation().X,this->GetActorLocation().Y, this->GetActorLocation().Z + this->Top};
+	const FVector End = FVector{this->GetActorLocation().X,this->GetActorLocation().Y, this->GetActorLocation().Z + this->Bottom};
 	TArray<FHitResult> Hits;
+	// UKismetSystemLibrary::BoxOverlapActors()
 	UKismetSystemLibrary::BoxTraceMultiByProfile(
 		GetWorld(),
 		Start,
 		End,
 		Size,
-		this->GetOwner()->GetActorRotation(),
+		this->GetActorRotation(),
 		FName("OverlapAll"),
 		true,
 		ActorsToIgnore,
@@ -142,7 +142,7 @@ void AVoxelDetectionSensor::PostPhysTick(UWorld *World, ELevelTick TickType, flo
     	auto CurrentBoxLocation = this->FindNearestBoxLocation(Hit.ImpactPoint);
     	int hitX = (CurrentBoxLocation.X+DetectedLen)/BoxSize - (fmod(CurrentBoxLocation.X+DetectedLen, BoxSize)>0?0:1);
     	int hitY = (CurrentBoxLocation.Y+DetectedLen)/BoxSize - (fmod(CurrentBoxLocation.Y+DetectedLen, BoxSize)>0?0:1);
-    	int hitZ = (CurrentBoxLocation.Z-this->Bottom)/BoxSize - (fmod(CurrentBoxLocation.Z-this->Bottom, BoxSize)>0?0:1);
+    	int hitZ = (CurrentBoxLocation.Z - this->Bottom)/BoxSize - (fmod(CurrentBoxLocation.Z - this->Bottom, BoxSize)>0?0:1);
     	if (hitX < 0 || hitX >= SemanticVoxels.getLength() ||
 			hitY < 0 || hitY >= SemanticVoxels.getWidth() ||
 			hitZ < 0 || hitZ >= SemanticVoxels.getHeight())
@@ -165,14 +165,13 @@ void AVoxelDetectionSensor::PostPhysTick(UWorld *World, ELevelTick TickType, flo
 				if (DrawDebug > 0 && SemanticVoxels[x][y][z] != -1)
 				{
 					FVector RelatePos = FVector{-DetectedLen+(2*x+1)*BoxSize/2, -DetectedLen+(2*y+1)*BoxSize/2, Bottom+(2*z+1)*BoxSize/2};
-					FVector Pos = UKismetMathLibrary::TransformLocation(this->GetOwner()->GetTransform(), RelatePos);
+					FVector Pos = UKismetMathLibrary::TransformLocation(this->GetTransform(), RelatePos);
 					FLinearColor thisColor = FLinearColor::Green;
 					if (ColorMap.Contains(SemanticVoxels[x][y][z]))
 					{
 						thisColor = ColorMap[SemanticVoxels[x][y][z]];
 					}
-					thisColor = FLinearColor::Green;
-					UKismetSystemLibrary::DrawDebugBox(GetWorld(), Pos, FVector{this->BoxSize/2, this->BoxSize/2, this->BoxSize/2},thisColor, this->GetOwner()->GetActorRotation(), 0.2); // Debug
+					UKismetSystemLibrary::DrawDebugBox(GetWorld(), Pos, FVector{this->BoxSize/2, this->BoxSize/2, this->BoxSize/2},thisColor, this->GetActorRotation(), 1); // Debug
 				}
 				DetectedVoxels.Add(SemanticVoxels[x][y][z]);/**/
 			}
@@ -201,7 +200,7 @@ void AVoxelDetectionSensor::VoxelDetection(TArray<FVector> BoxToDetected, TArray
 				int y = (RelateBoxLocation.Y+DetectedLen)/BoxSize - (fmod(RelateBoxLocation.Y+DetectedLen, BoxSize)>0?0:1);
 				int z = (RelateBoxLocation.Z-this->Bottom)/BoxSize - (fmod(RelateBoxLocation.Z-this->Bottom, BoxSize)>0?0:1);
 				FHitResult OutHits(ForceInit);
-				const FVector WorldBoxLocation = UKismetMathLibrary::TransformLocation(this->GetOwner()->GetTransform(), RelateBoxLocation);
+				const FVector WorldBoxLocation = UKismetMathLibrary::TransformLocation(this->GetTransform(), RelateBoxLocation);
 				const FVector Start = FVector{WorldBoxLocation.X, WorldBoxLocation.Y, WorldBoxLocation.Z+this->BoxSize/2};
 				const FVector End = FVector{WorldBoxLocation.X, WorldBoxLocation.Y, WorldBoxLocation.Z-this->BoxSize/2};
 				const FVector Size = FVector{this->BoxSize/2, this->BoxSize/2, this->BoxSize/2};
@@ -210,7 +209,7 @@ void AVoxelDetectionSensor::VoxelDetection(TArray<FVector> BoxToDetected, TArray
 					Start,
 					End,
 					Size,
-					this->GetOwner()->GetActorRotation(),
+					this->GetActorRotation(),
 					FName("Vehicle"),
 					true,
 					IgnoreActors,
@@ -220,14 +219,13 @@ void AVoxelDetectionSensor::VoxelDetection(TArray<FVector> BoxToDetected, TArray
 				if (OutHits.bBlockingHit)
 				{
 					const auto& CurrentEpisode = GetEpisode();
+					auto label = OutHits.Component->CustomDepthStencilValue;
 					SemanticVoxels[x][y][z] = OutHits.Component->CustomDepthStencilValue;
 				}else
 				{
 					return;
 				}
-				
 				Mutex.Lock();
-				// x axis expand
 				if (x-1 >= 0 && visited[x-1][y][z] == false)
 				{
 					NextBoxToDetect.Add(FVector{RelateBoxLocation.X-this->BoxSize, RelateBoxLocation.Y, RelateBoxLocation.Z});
@@ -266,11 +264,15 @@ void AVoxelDetectionSensor::VoxelDetection(TArray<FVector> BoxToDetected, TArray
 			ToDetected.Append(NextBoxToDetect);
 		}
 	});
+	
+	// UE_LOG(LogTemp, Warning, TEXT("API Count: %d"), count);
 }
 
 const FVector AVoxelDetectionSensor::FindNearestBoxLocation(FVector ImpactPoint)
 {
-	const FVector relateLocation = UKismetMathLibrary::InverseTransformLocation(this->GetOwner()->GetTransform(), ImpactPoint);
+	auto pos = this->GetTransform();
+	auto actor_trans = this->GetActorTransform();
+	const FVector relateLocation = UKismetMathLibrary::InverseTransformLocation(this->GetTransform(), ImpactPoint);
 	int x,y,z;
 	if (relateLocation.X == -DetectedLen)
 	{
@@ -282,11 +284,11 @@ const FVector AVoxelDetectionSensor::FindNearestBoxLocation(FVector ImpactPoint)
 		y = 0;
 	}
 	y = (relateLocation.Y+DetectedLen)/BoxSize - (fmod(relateLocation.Y+DetectedLen, BoxSize)>0?0:1);
-	if (relateLocation.Z == this->Bottom)
+	if (relateLocation.Z == this->GetActorLocation().Z + this->Bottom)
 	{
 		z = 0;
 	}
-	z = (relateLocation.Z-this->Bottom)/BoxSize - (fmod(relateLocation.Z-this->Bottom, BoxSize)>0?0:1);
+	z = (relateLocation.Z - this->Bottom)/BoxSize - (fmod(relateLocation.Z -this->Bottom, BoxSize)>0?0:1);
 	return FVector{-DetectedLen+(2*x+1)*BoxSize/2, -DetectedLen+(2*y+1)*BoxSize/2, Bottom+(2*z+1)*BoxSize/2};
 }
 
