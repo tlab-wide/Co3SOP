@@ -203,7 +203,7 @@ data = dict(
         use_semantic=use_semantic,
         classes=class_names,
         box_type_3d='LiDAR',
-        additional_root="additional"),
+        additional_root="additional_76m"),
     val=dict(
         type=dataset_type,
         data_root=data_root,
@@ -216,7 +216,7 @@ data = dict(
         use_semantic=use_semantic,
         classes=class_names,
         modality=input_modality,
-        additional_root="additional",
+        additional_root="additional_76m",
         pose_noise=pose_noise),
     test=dict(
         type=dataset_type,
@@ -230,7 +230,7 @@ data = dict(
         use_semantic=use_semantic,
         classes=class_names,
         modality=input_modality,
-        additional_root="additional",
+        additional_root="additional_76m",
         pose_noise=pose_noise),
     shuffler_sampler=dict(type='DistributedGroupSampler'),
     nonshuffler_sampler=dict(type='DistributedSampler')
@@ -259,7 +259,7 @@ total_epochs = 12
 evaluation = dict(interval=1, pipeline=test_pipeline)
 
 runner = dict(type='EpochBasedRunner', max_epochs=total_epochs)
-load_from = 'path to ego.pth'
+load_from = 'path_to_ego.pth'
 
 log_config = dict(
     interval=100,

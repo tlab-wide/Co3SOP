@@ -30,13 +30,8 @@ class LoadOccupancy(object):
         b = int((voxels.shape[0]+occ_size[0])/2)
         l = int((voxels.shape[1]-occ_size[1])/2)
         r = int((voxels.shape[1]+occ_size[1])/2)
-        voxels = voxels[f:b,l:r,:occ_size[2]]
-        voxels[voxels==0] = 23
-        voxels[voxels==255] = 0
-        
+        voxels = voxels[f:b,l:r,:occ_size[2]]       
         results['gt_occ'] = voxels
-        
-        
         return results
 
     def __repr__(self):

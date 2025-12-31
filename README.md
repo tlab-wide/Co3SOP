@@ -3,6 +3,7 @@
 # <center> Co3SOP: A Synthetic Benchmark for Collaborative 3D Semantic Occupancy Prediction in V2X Autonomous Driving 
 
 ## News
+- [2025/06/20] The preprint version is available on [arXiv](https://www.arxiv.org/abs/2506.17004)
 - [2025/03/10] The annotations for 3D semantic occupancy prediction are uploaded [here](https://huggingface.co/datasets/WuHanlin1997/Co3SOP/tree/main).
 
 ## Table of Contents
@@ -12,8 +13,13 @@
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
-To facilitate 3D semantic occupancy prediction in collaborative scenarios, we present a simulated dataset featuring a 3D semantic occupancy voxel sensor in Carla, which precisely and comprehensively annotate every surrounding voxel with semantic and occupancy states. In addition, we establish two benchmarks with varying detection ranges to investigate the impact of vehicle collaboration across different spatial extents and propose a baseline model that allows collaborative feature fusion. Experiments on our proposed benchmark demonstrate the superior performance of our baseline model.
+3D semantic occupancy prediction is an emerging perception paradigm in autonomous driving, providing a voxel-level representation of both geometric details and semantic categories. However, the perception capability of a single vehicle is inherently constrained by occlusion, restricted sensor range, and narrow viewpoints. To address these limitations, collaborative perception enables the exchange of complementary information, thereby enhancing the completeness and accuracy. In the absence of a dedicated dataset for collaborative 3D semantic occupancy prediction, we augment an existing collaborative perception dataset by replaying it in CARLA with a high-resolution semantic voxel sensor to provide dense and comprehensive occupancy annotations. In addition, we establish benchmarks with varying prediction ranges designed to systematically assess the impact of spatial extent on collaborative prediction. We further develop a baseline model that performs inter-agent feature fusion via spatial alignment and attention aggregation. Experimental results demonstrate that our baseline model consistently outperforms single-agent models, with increasing gains observed as the prediction range expands.
+
+## Annotation Pipeline
 ![Overview](Figures/Annotating.png)
+
+## Baseline Model
+![Overview](Figures/Baseline.png)
 
 ## Getting Start
 
@@ -50,7 +56,7 @@ To facilitate 3D semantic occupancy prediction in collaborative scenarios, we pr
 | OccFormer  | Camera  |  25.41 | 95.04 | 11.93 | 12.57 | 0.35 | 0.00 | 12.62 | 22.10 | 75.30 | 51.41 | 39.77 | 51.26 | 15.53 | 7.68 | 0.00 | 57.79 | 2.95 | 0.00 | 41.41 | 3.75 | 11.61 | 7.10 | 0.00 | 53.91 | 35.83 |
 | SurroundOcc  | Camera  |  25.76 | 95.33 | 7.57 | 11.60 | 1.77 | 0.00 | 13.51 | 22.13 | 79.53 | 45.23 | 35.60 | 52.34 | 12.92 | 11.72 | 0.00 | 52.90 | 2.32 | 0.00 | 42.17 | 2.03 | 10.08 | 6.46 | 0.00 | 75.08 | 37.88 |
 | Co3SOP-Ego|Camera|25.85|95.21|7.52|13.18|1.36|0.00|10.91|24.78|78.95|43.38|35.72|54.02|13.13|10.35|0.00|54.45|2.17|0.00|38.22|3.25|11.70|8.45|0.00|75.21|38.53|
-| Co3SOP-Base|Camera|27.32|95.37|8.71|14.53|0.09|0.00|15.11|28.56|79.05|44.51|37.00|64.42|13.20|9.89|0.00|55.63|2.36|0.00|51.47|2.45|11.74|6.99|0.00|77.46|37.18|
+| Co3SOP-Base|Camera|27.50|95.30|8.19|13.70|0.52|0.00|16.16|29.12|82.35|42.92|36.30|66.48|13.99|9.16|0.00|51.96|2.26|0.00|48.54|3.30|12.09|7.84|0.00|80.75|37.18|
 
 </div>
 
@@ -68,7 +74,16 @@ To facilitate 3D semantic occupancy prediction in collaborative scenarios, we pr
 
 </div>
 
-
+## Citation
+If you find our work useful for your research, please consider citing the paper:
+```bash
+@article{wu2025synthetic,
+  title={A Synthetic Benchmark for Collaborative 3D Semantic Occupancy Prediction in V2X Autonomous Driving},
+  author={Wu, Hanlin and Lin, Pengfei and Javanmardi, Ehsan and Bao, Naren and Qian, Bo and Si, Hao and Tsukada, Manabu},
+  journal={arXiv preprint arXiv:2506.17004},
+  year={2025}
+}
+```
 
 ## Acknowledgements
 Many thanks to these excellent projects:
