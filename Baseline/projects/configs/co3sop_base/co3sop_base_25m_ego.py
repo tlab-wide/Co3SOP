@@ -34,7 +34,7 @@ _dim_ = [192]
 _ffn_dim_ = [384]
 volume_h_ = [64]
 volume_w_ = [64]
-volume_z_ = [4]
+volume_z_ = [12]
 _num_points_ = [4]
 _num_layers_ = [3]
 
